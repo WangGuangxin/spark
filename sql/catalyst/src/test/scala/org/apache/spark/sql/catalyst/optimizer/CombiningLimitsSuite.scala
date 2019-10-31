@@ -19,9 +19,11 @@ package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.spark.sql.catalyst.dsl.expressions._
 import org.apache.spark.sql.catalyst.dsl.plans._
+import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.plans.PlanTest
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules._
+import org.apache.spark.sql.types.LongType
 
 class CombiningLimitsSuite extends PlanTest {
 
@@ -87,6 +89,53 @@ class CombiningLimitsSuite extends PlanTest {
       testRelation
         .select('a)
         .limit(2).analyze
+
+    comparePlans(optimized, correctAnswer)
+  }
+
+  test("combines two limits separated by Project") {
+    val originalQuery =
+      testRelation
+        .select('a).limit(2)
+        .select(Cast('a, LongType))
+        .limit(5)
+
+    val optimized = Optimize.execute(originalQuery.analyze)
+    val correctAnswer =
+      testRelation
+        .select('a)
+        .select(Cast('a, LongType))
+        .limit(2).analyze
+
+    comparePlans(optimized, correctAnswer)
+  }
+
+  test("combines two limits separated by Project and Filter") {
+    val originalQuery =
+      testRelation
+        .select('a).limit(2)
+        .select(Cast('a, LongType)).where('a > 10L)
+        .limit(5)
+
+    val optimized = Optimize.execute(originalQuery.analyze)
+    val correctAnswer =
+      testRelation
+        .select('a)
+        .select(Cast('a, LongType)).where('a > 10L)
+        .limit(2).analyze
+
+    comparePlans(optimized, correctAnswer)
+  }
+
+  test("should not combines limits separated by a Groupby") {
+    val originalQuery =
+      testRelation
+      .select('a, 'b).limit(2)
+      .groupBy('b)(sum('a))
+      .limit(5)
+
+    val optimized = Optimize.execute(originalQuery.analyze)
+    val correctAnswer = originalQuery.analyze
 
     comparePlans(optimized, correctAnswer)
   }

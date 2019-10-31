@@ -1383,8 +1383,9 @@ object PushPredicateThroughJoin extends Rule[LogicalPlan] with PredicateHelper {
 }
 
 /**
- * Combines two adjacent [[Limit]] operators into one, merging the
- * expressions into one single expression.
+ * Combines two [[Limit]] operators into one. This can happen:
+ *  1) if the two [[Limit]] is adjacent
+ *  2) if the two [[Limit]] are separated by Project/Filter operators
  */
 object CombineLimits extends Rule[LogicalPlan] {
   def apply(plan: LogicalPlan): LogicalPlan = plan transform {
@@ -1394,6 +1395,10 @@ object CombineLimits extends Rule[LogicalPlan] {
       LocalLimit(Least(Seq(ne, le)), grandChild)
     case Limit(le, Limit(ne, grandChild)) =>
       Limit(Least(Seq(ne, le)), grandChild)
+    case Limit(le, Project(projectList, Limit(ne, grandChild))) =>
+      Limit(Least(Seq(ne, le)), Project(projectList, grandChild))
+    case Limit(le, Filter(filterExpression, Project(projectList, Limit(ne, grandChild)))) =>
+      Limit(Least(Seq(ne, le)), Filter(filterExpression, Project(projectList, grandChild)))
   }
 }
 
