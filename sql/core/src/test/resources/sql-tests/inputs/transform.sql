@@ -1,0 +1,12 @@
+-- Test data.
+CREATE OR REPLACE TEMPORARY VIEW t AS SELECT * FROM VALUES
+('1', true, unhex('537061726B2053514C'), tinyint(1), 1, smallint(100), bigint(1), float(1.0), 1.0, Decimal(1.0), timestamp('1997-01-02'), date('2000-04-01')),
+('2', false, unhex('537061726B2053514C'), tinyint(2), 2,  smallint(200), bigint(2), float(2.0), 2.0, Decimal(2.0), timestamp('1997-01-02 03:04:05'), date('2000-04-02')),
+('3', true, unhex('537061726B2053514C'), tinyint(3), 3, smallint(300), bigint(3), float(3.0), 3.0, Decimal(3.0), timestamp('1997-02-10 17:32:01-08'), date('2000-04-03'))
+AS t(a, b, c, d, e, f, g, h, i, j, k, l);
+
+-- SPARK-34634: self join using CTE contains transform
+WITH temp AS (
+  SELECT TRANSFORM(a) USING 'cat' AS (b string) FROM t
+)
+SELECT t1.b FROM temp t1 JOIN temp t2 ON t1.b = t2.b

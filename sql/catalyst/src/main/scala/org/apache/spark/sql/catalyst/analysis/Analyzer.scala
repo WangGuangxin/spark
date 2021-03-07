@@ -931,6 +931,10 @@ class Analyzer(
               s.withNewPlan(dedupOuterReferencesInSubquery(s.plan, attributeRewrites))
           } -> attrMapping
         }
+
+        case oldVersion @ ScriptTransformation(_, _, output, _, _)
+            if AttributeSet(output).intersect(conflictingAttributes).nonEmpty =>
+          Seq((oldVersion, oldVersion.copy(output = output.map(_.newInstance()))))
       }
     }
 
