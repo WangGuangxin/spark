@@ -612,6 +612,7 @@ class CodegenContext extends Logging {
     case dt: DataType if dt.isInstanceOf[AtomicType] => s"$c1.equals($c2)"
     case array: ArrayType => genComp(array, c1, c2) + " == 0"
     case struct: StructType => genComp(struct, c1, c2) + " == 0"
+    case map: MapType => genComp(map, c1, c2) + " == 0"
     case udt: UserDefinedType[_] => genEqual(udt.sqlType, c1, c2)
     case NullType => "false"
     case _ =>
@@ -687,6 +688,71 @@ class CodegenContext extends Logging {
           }
         """
       s"${addNewFunction(compareFunc, funcCode)}($c1, $c2)"
+    case _ @ MapType(keyType, valueType, valueContainsNull) =>
+      val compareMapFunc = freshName("compareMap")
+
+      val compareKeyFunc = freshName("compareKey")
+      val compareValueFunc = freshName("compareValue")
+      val nullValueCheck = if (valueContainsNull) {
+        s"""
+           |boolean isNullA = leftArray.isNullAt(leftIndex);
+           |boolean isNullB = rightArray.isNullAt(rightIndex);
+           |if (isNullA && isNullB) {
+           |  return 0;
+           |} else if (isNullA) {
+           |  return -1;
+           |} else if (isNullB) {
+           |  return 1;
+           |}
+           |""".stripMargin
+      } else {
+        ""
+      }
+
+      addNewFunction(compareKeyFunc,
+        s"""
+           |private int $compareKeyFunc(ArrayData leftArray, int leftIndex, ArrayData rightArray,
+           |    int rightIndex) {
+           |  ${javaType(keyType)} left = ${getValue("leftArray", keyType, "leftIndex")};
+           |  ${javaType(keyType)} right = ${getValue("rightArray", keyType, "rightIndex")};
+           |  return ${genComp(keyType, "left", "right")};
+           |}
+           |""".stripMargin)
+
+      addNewFunction(compareValueFunc,
+        s"""
+           |private int $compareValueFunc(ArrayData leftArray, int leftIndex, ArrayData rightArray,
+           |    int rightIndex) {
+           |  $nullValueCheck
+           |  ${javaType(valueType)} left = ${getValue("leftArray", valueType, "leftIndex")};
+           |  ${javaType(valueType)} right = ${getValue("rightArray", valueType, "rightIndex")};
+           |  return ${genComp(valueType, "left", "right")};
+           |}
+           |""".stripMargin)
+
+      addNewFunction(compareMapFunc,
+        s"""
+           |public int $compareMapFunc(MapData left, MapData right) {
+           |  if (left.numElements() != right.numElements()) {
+           |    return left.numElements() - right.numElements();
+           |  }
+           |
+           |  int numElements = left.numElements();
+           |  for (int i = 0; i < numElements; i++) {
+           |    int keyComp = $compareKeyFunc(left.keyArray(), i, right.keyArray(), i);
+           |    if (keyComp != 0) {
+           |      return keyComp;
+           |    } else {
+           |      int valueComp = $compareValueFunc(left.valueArray(), i, right.valueArray(), i);
+           |      if (valueComp != 0) {
+           |        return valueComp;
+           |      }
+           |    }
+           |  }
+           |  return 0;
+           |}
+           |""".stripMargin)
+      s"this.$compareMapFunc($c1, $c2)"
     case schema: StructType =>
       val comparisons = GenerateOrdering.genComparisons(this, schema)
       val compareFunc = freshName("compareStruct")

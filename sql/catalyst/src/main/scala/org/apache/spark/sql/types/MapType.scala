@@ -17,10 +17,13 @@
 
 package org.apache.spark.sql.types
 
+import scala.math.Ordering
+
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
 
 import org.apache.spark.annotation.Stable
+import org.apache.spark.sql.catalyst.util.{MapData, TypeUtils}
 import org.apache.spark.sql.catalyst.util.StringUtils.StringConcat
 
 /**
@@ -78,6 +81,54 @@ case class MapType(
 
   override private[spark] def existsRecursively(f: (DataType) => Boolean): Boolean = {
     f(this) || keyType.existsRecursively(f) || valueType.existsRecursively(f)
+  }
+
+  @transient
+  private[sql] lazy val interpretedOrdering: Ordering[MapData] = new Ordering[MapData] {
+    private[this] val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
+    private[this] val valueOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(valueType)
+
+    def compare(left: MapData, right: MapData): Int = {
+      if (left.numElements() != right.numElements()) {
+        return left.numElements() - right.numElements()
+      }
+
+      val numElements = left.numElements()
+      val leftKeys = left.keyArray()
+      val rightKeys = right.keyArray()
+      val leftValues = left.valueArray()
+      val rightValues = right.valueArray()
+
+      var i = 0
+      while (i < numElements) {
+        val leftKey = leftKeys.get(i, keyType)
+        val rightKey = rightKeys.get(i, keyType)
+        val keyComp = keyOrdering.compare(leftKey, rightKey)
+        if (keyComp != 0) {
+          return keyComp
+        } else {
+          val leftValueIsNull = leftValues.isNullAt(i)
+          val rightValueIsNull = rightValues.isNullAt(i)
+          if (leftValueIsNull && rightValueIsNull) {
+            return 0
+          } else if (leftValueIsNull) {
+            return -1
+          } else if (rightValueIsNull) {
+            return 1
+          } else {
+            val leftValue = leftValues.get(i, valueType)
+            val rightValue = rightValues.get(i, valueType)
+            val valueComp = valueOrdering.compare(leftValue, rightValue)
+            if (valueComp != 0) {
+              return valueComp
+            }
+          }
+        }
+        i += 1
+      }
+
+      0
+    }
   }
 }
 
