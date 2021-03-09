@@ -42,7 +42,7 @@ object GenerateUnsafeProjection extends CodeGenerator[Seq[Expression], UnsafePro
     case _: CalendarIntervalType => true
     case t: StructType => t.forall(field => canSupport(field.dataType))
     case t: ArrayType if canSupport(t.elementType) => true
-    case MapType(kt, vt, _) if canSupport(kt) && canSupport(vt) => true
+    case MapType(kt, vt, _, _) if canSupport(kt) && canSupport(vt) => true
     case _ => false
   }
 
@@ -272,7 +272,7 @@ object GenerateUnsafeProjection extends CodeGenerator[Seq[Expression], UnsafePro
          |$writer.setOffsetAndSizeFromPreviousCursor($index, $previousCursor);
        """.stripMargin
 
-    case MapType(kt, vt, vn) =>
+    case MapType(kt, vt, vn, _) =>
       writeMapToBuffer(ctx, input, index, kt, vt, vn, writer)
 
     case DecimalType.Fixed(precision, scale) =>

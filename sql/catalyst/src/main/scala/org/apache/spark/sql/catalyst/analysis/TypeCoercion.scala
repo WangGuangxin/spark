@@ -85,7 +85,7 @@ abstract class TypeCoercionBase {
         ArrayType(et, containsNull1 || containsNull2 ||
           Cast.forceNullable(et1, et) || Cast.forceNullable(et2, et))
       }
-    case (MapType(kt1, vt1, valueContainsNull1), MapType(kt2, vt2, valueContainsNull2)) =>
+    case (MapType(kt1, vt1, valueContainsNull1, _), MapType(kt2, vt2, valueContainsNull2, _)) =>
       findTypeFunc(kt1, kt2)
         .filter { kt => !Cast.forceNullable(kt1, kt) && !Cast.forceNullable(kt2, kt) }
         .flatMap { kt =>
@@ -717,7 +717,7 @@ abstract class TypeCoercionBase {
         case (in: DecimalType, _: DecimalType) => in
         case (ArrayType(dtIn, _), ArrayType(dtExp, nullableExp)) =>
           ArrayType(udfInputToCastType(dtIn, dtExp), nullableExp)
-        case (MapType(keyDtIn, valueDtIn, _), MapType(keyDtExp, valueDtExp, nullableExp)) =>
+        case (MapType(keyDtIn, valueDtIn, _, _), MapType(keyDtExp, valueDtExp, nullableExp, _)) =>
           MapType(udfInputToCastType(keyDtIn, keyDtExp),
             udfInputToCastType(valueDtIn, valueDtExp),
             nullableExp)
@@ -992,7 +992,7 @@ object TypeCoercion extends TypeCoercionBase {
       // Refer to documentation above. Make sure that both key and values
       // can not be null after the implicit cast operation by calling forceNullable
       // method.
-      case (MapType(fromKeyType, fromValueType, fn), MapType(toKeyType, toValueType, tn))
+      case (MapType(fromKeyType, fromValueType, fn, _), MapType(toKeyType, toValueType, tn, _))
           if !Cast.forceNullable(fromKeyType, toKeyType) && Cast.resolvableNullability(fn, tn) =>
         if (Cast.forceNullable(fromValueType, toValueType) && !tn) {
           null

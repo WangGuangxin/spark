@@ -75,7 +75,7 @@ object CharVarcharUtils extends Logging {
   def replaceCharVarcharWithString(dt: DataType): DataType = dt match {
     case ArrayType(et, nullable) =>
       ArrayType(replaceCharVarcharWithString(et), nullable)
-    case MapType(kt, vt, nullable) =>
+    case MapType(kt, vt, nullable, _) =>
       MapType(replaceCharVarcharWithString(kt), replaceCharVarcharWithString(vt), nullable)
     case StructType(fields) =>
       StructType(fields.map { field =>
@@ -182,7 +182,7 @@ object CharVarcharUtils extends Logging {
 
       case ArrayType(et, containsNull) => stringLengthCheckInArray(expr, et, containsNull)
 
-      case MapType(kt, vt, valueContainsNull) =>
+      case MapType(kt, vt, valueContainsNull, _) =>
         val newKeys = stringLengthCheckInArray(MapKeys(expr), kt, containsNull = false)
         val newValues = stringLengthCheckInArray(MapValues(expr), vt, valueContainsNull)
         MapFromArrays(newKeys, newValues)

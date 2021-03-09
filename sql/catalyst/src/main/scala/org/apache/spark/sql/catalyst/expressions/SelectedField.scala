@@ -94,11 +94,11 @@ object SelectedField {
       case GetMapValue(child, _, _) =>
         // GetMapValue does not select a field from a struct (i.e. prune the struct) so it can't be
         // the top-level extractor. However it can be part of an extractor chain.
-        val MapType(keyType, _, valueContainsNull) = child.dataType
+        val MapType(keyType, _, valueContainsNull, _) = child.dataType
         val opt = dataTypeOpt.map(dt => MapType(keyType, dt, valueContainsNull))
         selectField(child, opt)
       case MapValues(child) =>
-        val MapType(keyType, _, valueContainsNull) = child.dataType
+        val MapType(keyType, _, valueContainsNull, _) = child.dataType
         // MapValues does not select a field from a struct (i.e. prune the struct) so it can't be
         // the top-level extractor. However it can be part of an extractor chain.
         val opt = dataTypeOpt.map {
@@ -109,7 +109,7 @@ object SelectedField {
         }
         selectField(child, opt)
       case MapKeys(child) =>
-        val MapType(_, valueType, valueContainsNull) = child.dataType
+        val MapType(_, valueType, valueContainsNull, _) = child.dataType
         // MapKeys does not select a field from a struct (i.e. prune the struct) so it can't be
         // the top-level extractor. However it can be part of an extractor chain.
         val opt = dataTypeOpt.map {

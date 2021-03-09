@@ -688,7 +688,7 @@ class CodegenContext extends Logging {
           }
         """
       s"${addNewFunction(compareFunc, funcCode)}($c1, $c2)"
-    case _ @ MapType(keyType, valueType, valueContainsNull) =>
+    case _ @ MapType(keyType, valueType, valueContainsNull, _) =>
       val compareMapFunc = freshName("compareMap")
 
       val compareKeyFunc = freshName("compareKey")

@@ -221,7 +221,7 @@ object NestedColumnAliasing {
     case _: AtomicType => 1
     case StructType(fields) => fields.map(f => totalFieldNum(f.dataType)).sum
     case ArrayType(elementType, _) => totalFieldNum(elementType)
-    case MapType(keyType, valueType, _) => totalFieldNum(keyType) + totalFieldNum(valueType)
+    case MapType(keyType, valueType, _, _) => totalFieldNum(keyType) + totalFieldNum(valueType)
     case _ => 1 // UDT and others
   }
 }

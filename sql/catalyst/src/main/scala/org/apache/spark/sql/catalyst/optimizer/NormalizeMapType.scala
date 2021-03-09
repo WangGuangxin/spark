@@ -18,19 +18,43 @@
 package org.apache.spark.sql.catalyst.optimizer
 
 import scala.math.Ordering
-
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenContext
 import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator.{getValue, javaType}
 import org.apache.spark.sql.catalyst.expressions.codegen.ExprCode
-import org.apache.spark.sql.catalyst.expressions.{And, EqualTo, ExpectsInputTypes, Expression, UnaryExpression}
+import org.apache.spark.sql.catalyst.expressions.{Alias, And, Attribute, BinaryComparison, EqualTo, ExpectsInputTypes, Expression, SortOrder, UnaryExpression}
 import org.apache.spark.sql.catalyst.planning.ExtractEquiJoinKeys
-import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Window}
+import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, LogicalPlan, Window}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapBuilder, MapData, TypeUtils}
 import org.apache.spark.sql.types.{AbstractDataType, DataType, MapType}
 
 object NormalizeMapType extends Rule[LogicalPlan] {
-  def apply(plan: LogicalPlan): LogicalPlan = plan transform {
+  def apply(plan: LogicalPlan): LogicalPlan = plan transformAllExpressions {
+    case cmp @ BinaryComparison(left, right) if containsUnorderedMap(left) =>
+      cmp.withNewChildren(ReorderMapKey(left) :: right :: Nil)
+    case cmp @ BinaryComparison(left, right) if containsUnorderedMap(right) =>
+      cmp.withNewChildren(left :: ReorderMapKey(right) :: Nil)
+    case sort: SortOrder if containsUnorderedMap(sort.child) =>
+      sort.copy(child = ReorderMapKey(sort.child))
+  } transform {
+    case a: Aggregate if a.groupingExpressions.exists(containsUnorderedMap) =>
+      // Modify the top level grouping expressions
+      val replacements = a.groupingExpressions.collect {
+        case a: Attribute if containsUnorderedMap(a) =>
+          a -> Alias(ReorderMapKey(a), a.name)(exprId = a.exprId, qualifier = a.qualifier)
+        case e if containsUnorderedMap(e) =>
+          e -> ReorderMapKey(e)
+      }
+
+      // Tranform the expression tree.
+      a.transformExpressionsUp {
+        case e =>
+          replacements
+            .find(_._1.semanticEquals(e))
+            .map(_._2)
+            .getOrElse(e)
+      }
+
     case w: Window if w.partitionSpec.exists(p => needNormalize(p)) =>
       w.copy(partitionSpec = w.partitionSpec.map(normalize))
 
@@ -44,6 +68,9 @@ object NormalizeMapType extends Rule[LogicalPlan] {
       } ++ condition
       j.copy(condition = Some(newConditions.reduce(And)))
   }
+
+  private def containsUnorderedMap(e: Expression): Boolean =
+    MapType.containsUnorderedMap(e.dataType)
 
   private def needNormalize(expr: Expression): Boolean = expr match {
     case ReorderMapKey(_) => false
@@ -59,13 +86,13 @@ object NormalizeMapType extends Rule[LogicalPlan] {
 }
 
 case class ReorderMapKey(child: Expression) extends UnaryExpression with ExpectsInputTypes {
-  private lazy val MapType(keyType, valueType, valueContainsNull) = dataType.asInstanceOf[MapType]
+  private val MapType(keyType, valueType, valueContainsNull, _) = dataType.asInstanceOf[MapType]
   private lazy val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
   private lazy val mapBuilder = new ArrayBasedMapBuilder(keyType, valueType)
 
   override def inputTypes: Seq[AbstractDataType] = Seq(MapType)
 
-  override def dataType: DataType = child.dataType
+  override def dataType: DataType = new MapType(keyType, valueType, valueContainsNull, true)
 
   override def nullSafeEval(input: Any): Any = {
     val childMap = input.asInstanceOf[MapData]

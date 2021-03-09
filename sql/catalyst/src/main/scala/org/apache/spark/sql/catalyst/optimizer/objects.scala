@@ -130,7 +130,7 @@ object ObjectSerializerPruning extends Rule[LogicalPlan] {
         fields.map(f => collectStructType(f.dataType, structs))
       case ArrayType(elementType, _) =>
         collectStructType(elementType, structs)
-      case MapType(keyType, valueType, _) =>
+      case MapType(keyType, valueType, _, _) =>
         collectStructType(keyType, structs)
         collectStructType(valueType, structs)
       // We don't use UserDefinedType in those serializers.

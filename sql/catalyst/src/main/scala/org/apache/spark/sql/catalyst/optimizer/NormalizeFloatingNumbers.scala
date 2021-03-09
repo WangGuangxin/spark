@@ -95,7 +95,7 @@ object NormalizeFloatingNumbers extends Rule[LogicalPlan] {
     case FloatType | DoubleType => true
     case StructType(fields) => fields.exists(f => needNormalize(f.dataType))
     case ArrayType(et, _) => needNormalize(et)
-    case MapType(kt, vt, _) => needNormalize(kt) || needNormalize(vt)
+    case MapType(kt, vt, _, _) => needNormalize(kt) || needNormalize(vt)
     case _ => false
   }
 
@@ -140,7 +140,7 @@ object NormalizeFloatingNumbers extends Rule[LogicalPlan] {
       KnownFloatingPointNormalized(ArrayTransform(expr, LambdaFunction(function, Seq(lv))))
 
     case _ if expr.dataType.isInstanceOf[MapType] =>
-      val MapType(kt, vt, containsNull) = expr.dataType
+      val MapType(kt, vt, containsNull, _) = expr.dataType
       var normalized = if (needNormalize(kt)) {
         val lv1 = NamedLambdaVariable("arg1", kt, false)
         val lv2 = NamedLambdaVariable("arg2", vt, containsNull)

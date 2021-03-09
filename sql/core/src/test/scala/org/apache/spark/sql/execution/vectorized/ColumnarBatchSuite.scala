@@ -864,7 +864,7 @@ class ColumnarBatchSuite extends SparkFunSuite {
 
   test("Int Map") {
     (MemoryMode.ON_HEAP :: MemoryMode.OFF_HEAP :: Nil).foreach { memMode =>
-      val column = allocate(10, new MapType(IntegerType, IntegerType, false), memMode)
+      val column = allocate(10, new MapType(IntegerType, IntegerType, false, false), memMode)
       (0 to 1).foreach { colIndex =>
         val data = column.getChild(colIndex)
         (0 to 5).foreach {i =>

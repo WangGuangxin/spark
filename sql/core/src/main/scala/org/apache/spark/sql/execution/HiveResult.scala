@@ -108,7 +108,7 @@ object HiveResult {
     case (interval: CalendarInterval, CalendarIntervalType) => interval.toString
     case (seq: scala.collection.Seq[_], ArrayType(typ, _)) =>
       seq.map(v => (v, typ)).map(e => toHiveString(e, true, formatters)).mkString("[", ",", "]")
-    case (m: Map[_, _], MapType(kType, vType, _)) =>
+    case (m: Map[_, _], MapType(kType, vType, _, _)) =>
       m.map { case (key, value) =>
         toHiveString((key, kType), true, formatters) + ":" +
           toHiveString((value, vType), true, formatters)

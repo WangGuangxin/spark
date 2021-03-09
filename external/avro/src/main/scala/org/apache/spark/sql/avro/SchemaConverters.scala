@@ -182,7 +182,7 @@ object SchemaConverters {
       case ArrayType(et, containsNull) =>
         builder.array()
           .items(toAvroType(et, containsNull, recordName, nameSpace))
-      case MapType(StringType, vt, valueContainsNull) =>
+      case MapType(StringType, vt, valueContainsNull, _) =>
         builder.map()
           .values(toAvroType(vt, valueContainsNull, recordName, nameSpace))
       case st: StructType =>

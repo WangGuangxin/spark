@@ -350,19 +350,19 @@ case class StructType(fields: Array[StructField]) extends DataType with Seq[Stru
             case (_, _, false) =>
               None // types nested in maps and arrays are not used
 
-            case (Seq("key"), MapType(keyType, _, _), true) =>
+            case (Seq("key"), MapType(keyType, _, _, _), true) =>
               // return the key type as a struct field to include nullability
               Some((normalizedPath :+ field.name) -> StructField("key", keyType, nullable = false))
 
-            case (Seq("key", names @ _*), MapType(struct: StructType, _, _), true) =>
+            case (Seq("key", names @ _*), MapType(struct: StructType, _, _, _), true) =>
               findField(struct, names, normalizedPath ++ Seq(field.name, "key"))
 
-            case (Seq("value"), MapType(_, valueType, isNullable), true) =>
+            case (Seq("value"), MapType(_, valueType, isNullable, _), true) =>
               // return the value type as a struct field to include nullability
               Some((normalizedPath :+ field.name) ->
                 StructField("value", valueType, nullable = isNullable))
 
-            case (Seq("value", names @ _*), MapType(_, struct: StructType, _), true) =>
+            case (Seq("value", names @ _*), MapType(_, struct: StructType, _, _), true) =>
               findField(struct, names, normalizedPath ++ Seq(field.name, "value"))
 
             case (Seq("element"), ArrayType(elementType, isNullable), true) =>
@@ -565,12 +565,13 @@ object StructType extends AbstractDataType {
           merge(leftElementType, rightElementType),
           leftContainsNull || rightContainsNull)
 
-      case (MapType(leftKeyType, leftValueType, leftContainsNull),
-      MapType(rightKeyType, rightValueType, rightContainsNull)) =>
+      case (MapType(leftKeyType, leftValueType, leftContainsNull, leftOrdered),
+      MapType(rightKeyType, rightValueType, rightContainsNull, rightOrdered)) =>
         MapType(
           merge(leftKeyType, rightKeyType),
           merge(leftValueType, rightValueType),
-          leftContainsNull || rightContainsNull)
+          leftContainsNull || rightContainsNull,
+          leftOrdered && rightOrdered)
 
       case (StructType(leftFields), StructType(rightFields)) =>
         val newFields = mutable.ArrayBuffer.empty[StructField]

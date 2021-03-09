@@ -183,7 +183,7 @@ class OrcSerializer(dataSchema: StructType) {
       }
       result
 
-    case MapType(keyType, valueType, _) => (getter, ordinal) =>
+    case MapType(keyType, valueType, _, _) => (getter, ordinal) =>
       val result = createOrcValue(dataType)
         .asInstanceOf[OrcMap[WritableComparable[_], WritableComparable[_]]]
       // Need to put all converted values to a list, can't reuse object.

@@ -54,8 +54,8 @@ object SchemaPruning {
         ArrayType(
           sortLeftFieldsByRight(leftElementType, rightElementType),
           containsNull)
-      case (MapType(leftKeyType, leftValueType, containsNull),
-          MapType(rightKeyType, rightValueType, _)) =>
+      case (MapType(leftKeyType, leftValueType, containsNull, _),
+          MapType(rightKeyType, rightValueType, _, _)) =>
         MapType(
           sortLeftFieldsByRight(leftKeyType, rightKeyType),
           sortLeftFieldsByRight(leftValueType, rightValueType),

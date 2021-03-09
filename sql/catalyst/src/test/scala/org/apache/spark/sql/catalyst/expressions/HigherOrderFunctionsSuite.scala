@@ -104,7 +104,7 @@ class HigherOrderFunctionsSuite extends SparkFunSuite with ExpressionEvalHelper 
   }
 
   def transformKeys(expr: Expression, f: (Expression, Expression) => Expression): Expression = {
-    val MapType(kt, vt, vcn) = expr.dataType
+    val MapType(kt, vt, vcn, _) = expr.dataType
     TransformKeys(expr, createLambda(kt, false, vt, vcn, f)).bind(validateBinding)
   }
 
@@ -131,7 +131,7 @@ class HigherOrderFunctionsSuite extends SparkFunSuite with ExpressionEvalHelper 
   }
 
   def transformValues(expr: Expression, f: (Expression, Expression) => Expression): Expression = {
-    val MapType(kt, vt, vcn) = expr.dataType
+    val MapType(kt, vt, vcn, _) = expr.dataType
     TransformValues(expr, createLambda(kt, false, vt, vcn, f)).bind(validateBinding)
   }
 
@@ -219,7 +219,7 @@ class HigherOrderFunctionsSuite extends SparkFunSuite with ExpressionEvalHelper 
 
   test("MapFilter") {
     def mapFilter(expr: Expression, f: (Expression, Expression) => Expression): Expression = {
-      val MapType(kt, vt, vcn) = expr.dataType
+      val MapType(kt, vt, vcn, _) = expr.dataType
       MapFilter(expr, createLambda(kt, false, vt, vcn, f)).bind(validateBinding)
     }
     val mii0 = Literal.create(Map(1 -> 0, 2 -> 10, 3 -> -1),
@@ -601,8 +601,8 @@ class HigherOrderFunctionsSuite extends SparkFunSuite with ExpressionEvalHelper 
         left: Expression,
         right: Expression,
         f: (Expression, Expression, Expression) => Expression): Expression = {
-      val MapType(kt, vt1, _) = left.dataType
-      val MapType(_, vt2, _) = right.dataType
+      val MapType(kt, vt1, _, _) = left.dataType
+      val MapType(_, vt2, _, _) = right.dataType
       MapZipWith(left, right, createLambda(kt, false, vt1, true, vt2, true, f))
         .bind(validateBinding)
     }

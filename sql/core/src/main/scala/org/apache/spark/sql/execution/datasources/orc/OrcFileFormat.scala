@@ -66,7 +66,7 @@ private[sql] object OrcFileFormat {
         .mkString("struct<", ",", ">")
     case ArrayType(elementType, _) =>
       s"array<${getQuotedSchemaString(elementType)}>"
-    case MapType(keyType, valueType, _) =>
+    case MapType(keyType, valueType, _, _) =>
       s"map<${getQuotedSchemaString(keyType)},${getQuotedSchemaString(valueType)}>"
     case _ => // UDT and others
       dataType.catalogString
@@ -251,7 +251,7 @@ class OrcFileFormat
 
     case ArrayType(elementType, _) => supportDataType(elementType)
 
-    case MapType(keyType, valueType, _) =>
+    case MapType(keyType, valueType, _, _) =>
       supportDataType(keyType) && supportDataType(valueType)
 
     case udt: UserDefinedType[_] => supportDataType(udt.sqlType)

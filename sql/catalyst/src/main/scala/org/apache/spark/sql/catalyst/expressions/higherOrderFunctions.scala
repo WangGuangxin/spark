@@ -418,7 +418,7 @@ case class MapFilter(
     (args.head.asInstanceOf[NamedLambdaVariable], args.tail.head.asInstanceOf[NamedLambdaVariable])
   }
 
-  @transient lazy val MapType(keyType, valueType, valueContainsNull) = argument.dataType
+  @transient lazy val MapType(keyType, valueType, valueContainsNull, _) = argument.dataType
 
   override def bind(f: (Expression, Seq[(DataType, Boolean)]) => LambdaFunction): MapFilter = {
     copy(function = f(function, (keyType, false) :: (valueType, valueContainsNull) :: Nil))
@@ -781,7 +781,7 @@ case class TransformKeys(
     function: Expression)
   extends MapBasedSimpleHigherOrderFunction with CodegenFallback {
 
-  @transient lazy val MapType(keyType, valueType, valueContainsNull) = argument.dataType
+  @transient lazy val MapType(keyType, valueType, valueContainsNull, _) = argument.dataType
 
   override def dataType: MapType = MapType(function.dataType, valueType, valueContainsNull)
 
@@ -834,7 +834,7 @@ case class TransformValues(
     function: Expression)
   extends MapBasedSimpleHigherOrderFunction with CodegenFallback {
 
-  @transient lazy val MapType(keyType, valueType, valueContainsNull) = argument.dataType
+  @transient lazy val MapType(keyType, valueType, valueContainsNull, _) = argument.dataType
 
   override def dataType: DataType = MapType(keyType, function.dataType, function.nullable)
 
@@ -886,9 +886,10 @@ case class MapZipWith(left: Expression, right: Expression, function: Expression)
 
   def functionForEval: Expression = functionsForEval.head
 
-  @transient lazy val MapType(leftKeyType, leftValueType, leftValueContainsNull) = left.dataType
+  @transient lazy val MapType(leftKeyType, leftValueType, leftValueContainsNull, _) = left.dataType
 
-  @transient lazy val MapType(rightKeyType, rightValueType, rightValueContainsNull) = right.dataType
+  @transient lazy val MapType(rightKeyType, rightValueType, rightValueContainsNull, _) =
+    right.dataType
 
   @transient lazy val keyType =
     TypeCoercion.findCommonTypeDifferentOnlyInNullFlags(leftKeyType, rightKeyType).get

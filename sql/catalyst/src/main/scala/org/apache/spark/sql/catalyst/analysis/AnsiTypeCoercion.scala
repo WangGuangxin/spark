@@ -210,7 +210,7 @@ object AnsiTypeCoercion extends TypeCoercionBase {
       // Implicit cast between Map types.
       // Follows the same semantics of implicit casting between two array types.
       // Refer to documentation above.
-      case (MapType(fromKeyType, fromValueType, fn), MapType(toKeyType, toValueType, tn))
+      case (MapType(fromKeyType, fromValueType, fn, _), MapType(toKeyType, toValueType, tn, _))
           if Cast.resolvableNullability(fn, tn) =>
         val newKeyType = implicitCast(fromKeyType, toKeyType, isInputFoldable)
         val newValueType = implicitCast(fromValueType, toValueType, isInputFoldable)

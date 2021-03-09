@@ -234,22 +234,22 @@ private[sql] object CatalogV2Util {
         val updatedType: StructType = replace(struct, names, update)
         Some(StructField(field.name, updatedType, field.nullable, field.metadata))
 
-      case (Seq("key"), map @ MapType(keyType, _, _)) =>
+      case (Seq("key"), map @ MapType(keyType, _, _, _)) =>
         val updated = update(StructField("key", keyType, nullable = false))
             .getOrElse(throw new IllegalArgumentException(s"Cannot delete map key"))
         Some(field.copy(dataType = map.copy(keyType = updated.dataType)))
 
-      case (Seq("key", names @ _*), map @ MapType(keyStruct: StructType, _, _)) =>
+      case (Seq("key", names @ _*), map @ MapType(keyStruct: StructType, _, _, _)) =>
         Some(field.copy(dataType = map.copy(keyType = replace(keyStruct, names, update))))
 
-      case (Seq("value"), map @ MapType(_, mapValueType, isNullable)) =>
+      case (Seq("value"), map @ MapType(_, mapValueType, isNullable, _)) =>
         val updated = update(StructField("value", mapValueType, nullable = isNullable))
             .getOrElse(throw new IllegalArgumentException(s"Cannot delete map value"))
         Some(field.copy(dataType = map.copy(
           valueType = updated.dataType,
           valueContainsNull = updated.nullable)))
 
-      case (Seq("value", names @ _*), map @ MapType(_, valueStruct: StructType, _)) =>
+      case (Seq("value", names @ _*), map @ MapType(_, valueStruct: StructType, _, _)) =>
         Some(field.copy(dataType = map.copy(valueType = replace(valueStruct, names, update))))
 
       case (Seq("element"), array @ ArrayType(elementType, isNullable)) =>
@@ -381,7 +381,7 @@ private[sql] object CatalogV2Util {
   def failNullType(dt: DataType): Unit = {
     def containsNullType(dt: DataType): Boolean = dt match {
       case ArrayType(et, _) => containsNullType(et)
-      case MapType(kt, vt, _) => containsNullType(kt) || containsNullType(vt)
+      case MapType(kt, vt, _, _) => containsNullType(kt) || containsNullType(vt)
       case StructType(fields) => fields.exists(f => containsNullType(f.dataType))
       case _ => dt.isInstanceOf[NullType]
     }

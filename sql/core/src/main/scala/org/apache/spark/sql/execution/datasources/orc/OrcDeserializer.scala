@@ -159,7 +159,7 @@ class OrcDeserializer(
 
         updater.set(ordinal, result)
 
-      case MapType(keyType, valueType, _) => (ordinal, value) =>
+      case MapType(keyType, valueType, _, _) => (ordinal, value) =>
         val orcMap = value.asInstanceOf[OrcMap[WritableComparable[_], WritableComparable[_]]]
         val length = orcMap.size()
         val keyArray = createArrayData(keyType, length)

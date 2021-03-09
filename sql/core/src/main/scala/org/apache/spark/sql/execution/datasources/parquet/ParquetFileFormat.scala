@@ -372,7 +372,7 @@ class ParquetFileFormat
 
     case ArrayType(elementType, _) => supportDataType(elementType)
 
-    case MapType(keyType, valueType, _) =>
+    case MapType(keyType, valueType, _, _) =>
       supportDataType(keyType) && supportDataType(valueType)
 
     case udt: UserDefinedType[_] => supportDataType(udt.sqlType)

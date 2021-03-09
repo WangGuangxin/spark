@@ -211,7 +211,7 @@ object InterpretedUnsafeProjection {
           writer.setOffsetAndSizeFromPreviousCursor(i, previousCursor)
         }
 
-      case MapType(keyType, valueType, valueContainsNull) =>
+      case MapType(keyType, valueType, valueContainsNull, _) =>
         val keyArrayWriter = new UnsafeArrayWriter(writer, getElementSize(keyType))
         val keyWriter = generateFieldWriter(
           keyArrayWriter,

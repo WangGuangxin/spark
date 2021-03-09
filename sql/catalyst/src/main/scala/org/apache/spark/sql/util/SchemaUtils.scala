@@ -47,7 +47,7 @@ private[spark] object SchemaUtils {
     schema match {
       case ArrayType(elementType, _) =>
         checkSchemaColumnNameDuplication(elementType, colType, caseSensitiveAnalysis)
-      case MapType(keyType, valueType, _) =>
+      case MapType(keyType, valueType, _, _) =>
         checkSchemaColumnNameDuplication(keyType, colType, caseSensitiveAnalysis)
         checkSchemaColumnNameDuplication(valueType, colType, caseSensitiveAnalysis)
       case structType: StructType =>

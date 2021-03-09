@@ -235,7 +235,7 @@ case class CreateMap(children: Seq[Expression], useStringTypeWhenEmpty: Boolean)
   }
 
   override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
-    val MapType(keyDt, valueDt, _) = dataType
+    val MapType(keyDt, valueDt, _, _) = dataType
     val (allocationKeyData, assignKeys, keyArrayData) =
       GenArrayData.genCodeToCreateArrayData(ctx, keyDt, keys, "createMap")
     val (allocationValueData, assignValues, valueArrayData) =

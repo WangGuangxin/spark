@@ -134,7 +134,7 @@ trait ExpressionEvalHelper extends ScalaCheckDrivenPropertyChecks with PlanTestB
           isSame
         }
       case (result: MapData, expected: MapData) =>
-        val MapType(kt, vt, vcn) = dataType.asInstanceOf[MapType]
+        val MapType(kt, vt, vcn, _) = dataType.asInstanceOf[MapType]
         checkResult(result.keyArray, expected.keyArray, ArrayType(kt, false), false) &&
           checkResult(result.valueArray, expected.valueArray, ArrayType(vt, vcn), false)
       case (result: Double, expected: Double) =>

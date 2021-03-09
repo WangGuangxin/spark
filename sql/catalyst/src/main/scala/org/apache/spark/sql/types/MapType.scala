@@ -39,7 +39,8 @@ import org.apache.spark.sql.catalyst.util.StringUtils.StringConcat
 case class MapType(
   keyType: DataType,
   valueType: DataType,
-  valueContainsNull: Boolean) extends DataType {
+  valueContainsNull: Boolean,
+  ordered: Boolean = false) extends DataType {
 
   /** No-arg constructor for kryo. */
   def this() = this(null, null, false)
@@ -77,7 +78,7 @@ case class MapType(
   override def sql: String = s"MAP<${keyType.sql}, ${valueType.sql}>"
 
   override private[spark] def asNullable: MapType =
-    MapType(keyType.asNullable, valueType.asNullable, valueContainsNull = true)
+    MapType(keyType.asNullable, valueType.asNullable, valueContainsNull = true, ordered)
 
   override private[spark] def existsRecursively(f: (DataType) => Boolean): Boolean = {
     f(this) || keyType.existsRecursively(f) || valueType.existsRecursively(f)
@@ -85,8 +86,10 @@ case class MapType(
 
   @transient
   private[sql] lazy val interpretedOrdering: Ordering[MapData] = new Ordering[MapData] {
-    private[this] val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
-    private[this] val valueOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(valueType)
+    assert(ordered)
+
+    private val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
+    private val valueOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(valueType)
 
     def compare(left: MapData, right: MapData): Int = {
       if (left.numElements() != right.numElements()) {
@@ -151,5 +154,15 @@ object MapType extends AbstractDataType {
    * The `valueContainsNull` is true.
    */
   def apply(keyType: DataType, valueType: DataType): MapType =
-    MapType(keyType: DataType, valueType: DataType, valueContainsNull = true)
+    MapType(keyType: DataType, valueType: DataType, valueContainsNull = true, ordered = false)
+
+  /**
+   * Check if a dataType contains an unordered map.
+   */
+  private[sql] def containsUnorderedMap(dataType: DataType): Boolean = {
+    dataType.existsRecursively {
+      case m: MapType => !m.ordered
+      case _ => false
+    }
+  }
 }

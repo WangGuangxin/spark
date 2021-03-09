@@ -59,7 +59,7 @@ case class JsonTable(
 
     case ArrayType(elementType, _) => supportsDataType(elementType)
 
-    case MapType(keyType, valueType, _) =>
+    case MapType(keyType, valueType, _, _) =>
       supportsDataType(keyType) && supportsDataType(valueType)
 
     case udt: UserDefinedType[_] => supportsDataType(udt.sqlType)

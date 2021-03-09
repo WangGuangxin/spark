@@ -582,11 +582,11 @@ trait Row extends Serializable {
         iteratorToJsonArray(a.iterator, elementType)
       case (s: Seq[_], ArrayType(elementType, _)) =>
         iteratorToJsonArray(s.iterator, elementType)
-      case (m: Map[String @unchecked, _], MapType(StringType, valueType, _)) =>
+      case (m: Map[String @unchecked, _], MapType(StringType, valueType, _, _)) =>
         new JObject(m.toList.sortBy(_._1).map {
           case (k, v) => k -> toJson(v, valueType)
         })
-      case (m: Map[_, _], MapType(keyType, valueType, _)) =>
+      case (m: Map[_, _], MapType(keyType, valueType, _, _)) =>
         new JArray(m.iterator.map {
           case (k, v) =>
             new JObject("key" -> toJson(k, keyType) :: "value" -> toJson(v, valueType) :: Nil)

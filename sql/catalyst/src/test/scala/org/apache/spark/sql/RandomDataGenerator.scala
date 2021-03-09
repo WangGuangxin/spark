@@ -307,7 +307,7 @@ object RandomDataGenerator {
         forType(elementType, nullable = containsNull, rand).map {
           elementGenerator => () => Seq.fill(rand.nextInt(MAX_ARR_SIZE))(elementGenerator())
         }
-      case MapType(keyType, valueType, valueContainsNull) =>
+      case MapType(keyType, valueType, valueContainsNull, _) =>
         for (
           keyGenerator <- forType(keyType, nullable = false, rand);
           valueGenerator <-

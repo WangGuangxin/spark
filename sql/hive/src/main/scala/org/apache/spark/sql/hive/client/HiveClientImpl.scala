@@ -1300,8 +1300,8 @@ private[hive] case object HiveVoidType extends DataType {
   def replaceVoidType(dt: DataType): DataType = dt match {
     case ArrayType(et, nullable) =>
       ArrayType(replaceVoidType(et), nullable)
-    case MapType(kt, vt, nullable) =>
-      MapType(replaceVoidType(kt), replaceVoidType(vt), nullable)
+    case MapType(kt, vt, nullable, ordered) =>
+      MapType(replaceVoidType(kt), replaceVoidType(vt), nullable, ordered)
     case StructType(fields) =>
       StructType(fields.map { field =>
         field.copy(dataType = replaceVoidType(field.dataType))

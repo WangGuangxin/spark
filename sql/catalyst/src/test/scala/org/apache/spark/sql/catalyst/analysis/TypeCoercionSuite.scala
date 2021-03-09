@@ -86,7 +86,7 @@ class TypeCoercionSuite extends AnalysisTest {
   private def default(dataType: DataType): Expression = dataType match {
     case ArrayType(internalType: DataType, _) =>
       CreateArray(Seq(Literal.default(internalType)))
-    case MapType(keyDataType: DataType, valueDataType: DataType, _) =>
+    case MapType(keyDataType: DataType, valueDataType: DataType, _, _) =>
       CreateMap(Seq(Literal.default(keyDataType), Literal.default(valueDataType)))
     case _ => Literal.default(dataType)
   }
@@ -94,7 +94,7 @@ class TypeCoercionSuite extends AnalysisTest {
   private def createNull(dataType: DataType): Expression = dataType match {
     case ArrayType(internalType: DataType, _) =>
       CreateArray(Seq(Literal.create(null, internalType)))
-    case MapType(keyDataType: DataType, valueDataType: DataType, _) =>
+    case MapType(keyDataType: DataType, valueDataType: DataType, _, _) =>
       CreateMap(Seq(Literal.create(null, keyDataType), Literal.create(null, valueDataType)))
     case _ => Literal.create(null, dataType)
   }

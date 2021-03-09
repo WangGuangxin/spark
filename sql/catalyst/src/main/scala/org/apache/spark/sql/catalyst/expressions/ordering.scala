@@ -108,7 +108,7 @@ object RowOrdering extends CodeGeneratorWithInterpretedFallback[Seq[SortOrder], 
     case dt: AtomicType => true
     case struct: StructType => struct.fields.forall(f => isOrderable(f.dataType))
     case array: ArrayType => isOrderable(array.elementType)
-    case map: MapType => isOrderable(map.keyType) && isOrderable(map.valueType)
+    case MapType(keyType, valueType, _, true) => isOrderable(keyType) && isOrderable(valueType)
     case udt: UserDefinedType[_] => isOrderable(udt.sqlType)
     case _ => false
   }

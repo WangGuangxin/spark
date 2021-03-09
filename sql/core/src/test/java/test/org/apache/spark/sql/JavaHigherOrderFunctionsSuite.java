@@ -95,7 +95,7 @@ public class JavaHigherOrderFunctionsSuite {
             null
         );
         StructType schema = new StructType()
-            .add("x", new MapType(IntegerType, IntegerType, true));
+            .add("x", new MapType(IntegerType, IntegerType, true, false));
         mapDf = spark.createDataFrame(data, schema);
     }
 

@@ -18,12 +18,12 @@
 package org.apache.spark.sql.execution
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{AnalysisException, Strategy, execution}
+import org.apache.spark.sql.{execution, AnalysisException, Strategy}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
-import org.apache.spark.sql.catalyst.optimizer.{BuildLeft, BuildRight, JoinSelectionHelper, NormalizeFloatingNumbers, NormalizeMapType}
+import org.apache.spark.sql.catalyst.optimizer.{BuildLeft, BuildRight, JoinSelectionHelper, NormalizeFloatingNumbers}
 import org.apache.spark.sql.catalyst.planning._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
@@ -340,11 +340,6 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
             case n: NamedExpression => n
             case other => Alias(other, e.name)(exprId = e.exprId)
           }
-        }.map { e =>
-          NormalizeMapType.normalize(e) match {
-            case n: NamedExpression => n
-            case other => Alias(other, e.name)(exprId = e.exprId)
-          }
         }
 
         AggUtils.planStreamingAggregation(
@@ -454,11 +449,6 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
             // Keep the name of the original expression.
             case other => Alias(other, e.name)(exprId = e.exprId)
           }
-        }.map { e =>
-          NormalizeMapType.normalize(e) match {
-            case n: NamedExpression => n
-            case other => Alias(other, e.name)(exprId = e.exprId)
-          }
         }
 
         val aggregateOperator =
@@ -489,11 +479,6 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
                     case _ => e.toString
                   }
                   Alias(other, name)()
-              }
-            }.map { e =>
-              NormalizeMapType.normalize(e) match {
-                case n: NamedExpression => n
-                case other => Alias(other, e.name)(exprId = e.exprId)
               }
             }
 

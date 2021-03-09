@@ -88,7 +88,7 @@ class InterpretedSafeProjection(expressions: Seq[Expression]) extends Projection
         new GenericInternalRow(ar)
       }
 
-    case MapType(keyType, valueType, _) =>
+    case MapType(keyType, valueType, _, _) =>
       lazy val keyConverter = generateSafeValueConverter(keyType)
       lazy val valueConverter = generateSafeValueConverter(valueType)
       v => {

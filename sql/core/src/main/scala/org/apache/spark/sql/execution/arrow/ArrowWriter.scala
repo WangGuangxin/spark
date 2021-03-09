@@ -62,7 +62,7 @@ object ArrowWriter {
       case (ArrayType(_, _), vector: ListVector) =>
         val elementVector = createFieldWriter(vector.getDataVector())
         new ArrayWriter(vector, elementVector)
-      case (MapType(_, _, _), vector: MapVector) =>
+      case (MapType(_, _, _, _), vector: MapVector) =>
         val structVector = vector.getDataVector.asInstanceOf[StructVector]
         val keyWriter = createFieldWriter(structVector.getChild(MapVector.KEY_NAME))
         val valueWriter = createFieldWriter(structVector.getChild(MapVector.VALUE_NAME))

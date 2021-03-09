@@ -1946,14 +1946,14 @@ case class ElementAt(
 
   @transient override lazy val dataType: DataType = left.dataType match {
     case ArrayType(elementType, _) => elementType
-    case MapType(_, valueType, _) => valueType
+    case MapType(_, valueType, _, _) => valueType
   }
 
   override def inputTypes: Seq[AbstractDataType] = {
     (left.dataType, right.dataType) match {
       case (arr: ArrayType, e2: IntegralType) if (e2 != LongType) =>
         Seq(arr, IntegerType)
-      case (MapType(keyType, valueType, hasNull), e2) =>
+      case (MapType(keyType, valueType, hasNull, _), e2) =>
         TypeCoercion.findTightestCommonType(keyType, e2) match {
           case Some(dt) => Seq(MapType(dt, valueType, hasNull), dt)
           case _ => Seq.empty
@@ -1969,7 +1969,7 @@ case class ElementAt(
         TypeCheckResult.TypeCheckFailure(s"Input to function $prettyName should have " +
           s"been ${ArrayType.simpleString} followed by a ${IntegerType.simpleString}, but it's " +
           s"[${left.dataType.catalogString}, ${right.dataType.catalogString}].")
-      case (MapType(e1, _, _), e2) if (!e2.sameType(e1)) =>
+      case (MapType(e1, _, _, _), e2) if (!e2.sameType(e1)) =>
         TypeCheckResult.TypeCheckFailure(s"Input to function $prettyName should have " +
           s"been ${MapType.simpleString} followed by a value of same key type, but it's " +
           s"[${left.dataType.catalogString}, ${right.dataType.catalogString}].")

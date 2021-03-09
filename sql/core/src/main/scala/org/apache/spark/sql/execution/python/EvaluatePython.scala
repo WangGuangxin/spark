@@ -39,7 +39,7 @@ object EvaluatePython {
     case _: StructType => true
     case _: UserDefinedType[_] => true
     case ArrayType(elementType, _) => needConversionInPython(elementType)
-    case MapType(keyType, valueType, _) =>
+    case MapType(keyType, valueType, _, _) =>
       needConversionInPython(keyType) || needConversionInPython(valueType)
     case _ => false
   }
@@ -162,7 +162,7 @@ object EvaluatePython {
           new GenericArrayData(c.asInstanceOf[Array[_]].map(e => elementFromJava(e)))
       }
 
-    case MapType(keyType, valueType, _) =>
+    case MapType(keyType, valueType, _, _) =>
       val keyFromJava = makeFromJava(keyType)
       val valueFromJava = makeFromJava(valueType)
 

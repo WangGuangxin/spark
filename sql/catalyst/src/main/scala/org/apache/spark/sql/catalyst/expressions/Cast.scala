@@ -82,7 +82,7 @@ object Cast {
       canCast(fromType, toType) &&
         resolvableNullability(fn || forceNullable(fromType, toType), tn)
 
-    case (MapType(fromKey, fromValue, fn), MapType(toKey, toValue, tn)) =>
+    case (MapType(fromKey, fromValue, fn, _), MapType(toKey, toValue, tn, _)) =>
       canCast(fromKey, toKey) &&
         (!forceNullable(fromKey, toKey)) &&
         canCast(fromValue, toValue) &&
@@ -117,7 +117,7 @@ object Cast {
     case (DateType, TimestampType) => true
     case (TimestampType, DateType) => true
     case (ArrayType(fromType, _), ArrayType(toType, _)) => needsTimeZone(fromType, toType)
-    case (MapType(fromKey, fromValue, _), MapType(toKey, toValue, _)) =>
+    case (MapType(fromKey, fromValue, _, _), MapType(toKey, toValue, _, _)) =>
       needsTimeZone(fromKey, toKey) || needsTimeZone(fromValue, toValue)
     case (StructType(fromFields), StructType(toFields)) =>
       fromFields.length == toFields.length &&
@@ -151,7 +151,7 @@ object Cast {
     case (ArrayType(fromType, fn), ArrayType(toType, tn)) =>
       resolvableNullability(fn, tn) && canUpCast(fromType, toType)
 
-    case (MapType(fromKey, fromValue, fn), MapType(toKey, toValue, tn)) =>
+    case (MapType(fromKey, fromValue, fn, _), MapType(toKey, toValue, tn, _)) =>
       resolvableNullability(fn, tn) && canUpCast(fromKey, toKey) && canUpCast(fromValue, toValue)
 
     case (StructType(fromFields), StructType(toFields)) =>
@@ -183,7 +183,7 @@ object Cast {
     case (ArrayType(fromType, fn), ArrayType(toType, tn)) =>
       resolvableNullability(fn, tn) && canANSIStoreAssign(fromType, toType)
 
-    case (MapType(fromKey, fromValue, fn), MapType(toKey, toValue, tn)) =>
+    case (MapType(fromKey, fromValue, fn, _), MapType(toKey, toValue, tn, _)) =>
       resolvableNullability(fn, tn) && canANSIStoreAssign(fromKey, toKey) &&
         canANSIStoreAssign(fromValue, toValue)
 
@@ -341,7 +341,7 @@ abstract class CastBase extends UnaryExpression with TimeZoneAwareExpression wit
         builder.append("]")
         builder.build()
       })
-    case MapType(kt, vt, _) =>
+    case MapType(kt, vt, _, _) =>
       buildCast[MapData](_, map => {
         val builder = new UTF8StringBuilder
         builder.append(leftBracket)
@@ -1091,7 +1091,7 @@ abstract class CastBase extends UnaryExpression with TimeZoneAwareExpression wit
              |$evPrim = $buffer.build();
            """.stripMargin
         }
-      case MapType(kt, vt, _) =>
+      case MapType(kt, vt, _, _) =>
         (c, evPrim, evNull) => {
           val buffer = ctx.freshVariable("buffer", classOf[UTF8StringBuilder])
           val bufferClass = JavaCode.javaType(classOf[UTF8StringBuilder])
@@ -1901,7 +1901,7 @@ object AnsiCast {
       canCast(fromType, toType) &&
         resolvableNullability(fn || forceNullable(fromType, toType), tn)
 
-    case (MapType(fromKey, fromValue, fn), MapType(toKey, toValue, tn)) =>
+    case (MapType(fromKey, fromValue, fn, _), MapType(toKey, toValue, tn, _)) =>
       canCast(fromKey, toKey) &&
         (!forceNullable(fromKey, toKey)) &&
         canCast(fromValue, toValue) &&
