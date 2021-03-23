@@ -4178,14 +4178,14 @@ class SQLQuerySuite extends QueryTest with SharedSparkSession with AdaptiveSpark
               sql(
                 """select m2, count(1), percentile(id, 0.5) from (
                   |   select
-                  |     case when size(m) == 3 then m else map('b', '2', 'a', '1', 'c', '3')
+                  |     case when size(m) == 3 then m else map('b', 2, 'a', 1, 'c', 3)
                   |     end as m2,
                   |     1 as id
                   |   from t
                   |)
                   |group by m2
                   |""".stripMargin),
-                Row(Map("a" -> 1, "b" -> 2, "c" -> 3), 6, 1.0d)
+                Row(Map("a" -> 1, "b" -> 2, "c" -> 3), 6, 1.0)
             )
 
             checkAnswer(
@@ -4200,7 +4200,7 @@ class SQLQuerySuite extends QueryTest with SharedSparkSession with AdaptiveSpark
             )
 
             checkAnswer(
-              sql("select m from t where m = map('b', '2', 'a', '1', 'c', '3')"),
+              sql("select m from t where m = map('b', 2, 'a', 1, 'c', 3)"),
               Row(Map('a' -> 1, "b" -> 2, "c" -> 3)) :: Nil
             )
           }
