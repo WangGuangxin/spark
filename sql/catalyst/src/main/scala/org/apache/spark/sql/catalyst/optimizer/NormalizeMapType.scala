@@ -59,7 +59,7 @@ object NormalizeMapType extends Rule[LogicalPlan] {
   }
 
   private def needNormalize(expr: Expression): Boolean = expr match {
-    case SortMapKey(_) => false
+    case SortMapKeys(_) => false
     case e if e.dataType.isInstanceOf[MapType] => true
     case _ => false
   }
@@ -67,11 +67,11 @@ object NormalizeMapType extends Rule[LogicalPlan] {
   private[sql] def normalize(expr: Expression): Expression = expr match {
     case _ if !needNormalize(expr) => expr
     case e if e.dataType.isInstanceOf[MapType] =>
-      SortMapKey(e)
+      SortMapKeys(e)
   }
 }
 
-case class SortMapKey(child: Expression) extends UnaryExpression with ExpectsInputTypes {
+case class SortMapKeys(child: Expression) extends UnaryExpression with ExpectsInputTypes {
   private lazy val MapType(keyType, valueType, valueContainsNull) = dataType.asInstanceOf[MapType]
   private lazy val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
   private lazy val mapBuilder = new ArrayBasedMapBuilder(keyType, valueType)

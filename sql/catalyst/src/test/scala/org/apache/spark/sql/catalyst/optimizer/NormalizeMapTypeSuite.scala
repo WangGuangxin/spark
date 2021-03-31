@@ -42,7 +42,7 @@ class NormalizeMapTypeSuite extends PlanTest {
     val query = testRelation1.window(Seq(sum(a1).as("sum")), Seq(m1), Seq(m1.asc))
     val optimized = Optimize.execute(query)
     val correctAnswer = testRelation1.window(Seq(sum(a1).as("sum")),
-      Seq(SortMapKey(m1)), Seq(m1.asc))
+      Seq(SortMapKeys(m1)), Seq(m1.asc))
 
     comparePlans(optimized, correctAnswer)
   }
@@ -52,7 +52,7 @@ class NormalizeMapTypeSuite extends PlanTest {
     val optimized = Optimize.execute(query)
     val doubleOptimized = Optimize.execute(optimized)
     val correctAnswer = testRelation1.window(Seq(sum(a1).as("sum")),
-      Seq(SortMapKey(m1)), Seq(m1.asc))
+      Seq(SortMapKeys(m1)), Seq(m1.asc))
 
     comparePlans(doubleOptimized, correctAnswer)
   }
@@ -61,7 +61,7 @@ class NormalizeMapTypeSuite extends PlanTest {
     val query = testRelation1.join(testRelation2, condition = Some(m1 === m2))
 
     val optimized = Optimize.execute(query)
-    val joinCond = Some(SortMapKey(m1) === SortMapKey(m2))
+    val joinCond = Some(SortMapKeys(m1) === SortMapKeys(m2))
     val correctAnswer = testRelation1.join(testRelation2, condition = joinCond)
 
     comparePlans(optimized, correctAnswer)
@@ -72,11 +72,9 @@ class NormalizeMapTypeSuite extends PlanTest {
 
     val optimized = Optimize.execute(query)
     val doubleOptimized = Optimize.execute(optimized)
-    val joinCond = Some(SortMapKey(m1) === SortMapKey(m2))
+    val joinCond = Some(SortMapKeys(m1) === SortMapKeys(m2))
     val correctAnswer = testRelation1.join(testRelation2, condition = joinCond)
 
     comparePlans(doubleOptimized, correctAnswer)
   }
 }
-
-

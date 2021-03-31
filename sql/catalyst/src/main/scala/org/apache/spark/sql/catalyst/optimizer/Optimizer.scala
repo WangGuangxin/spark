@@ -230,11 +230,11 @@ abstract class Optimizer(catalogManager: CatalogManager)
       ColumnPruning,
       CollapseProject,
       RemoveNoopOperators) :+
-    // Following batches must be executed after the `RewriteSubquery` batch, which creates joins.
+    // Following two batches must be executed after the `RewriteSubquery` batch,
+    // which creates joins.
     Batch("NormalizeFloatingNumbers", Once, NormalizeFloatingNumbers) :+
     Batch("NormalizeMapType", Once, NormalizeMapType) :+
     Batch("ReplaceUpdateFieldsExpression", Once, ReplaceUpdateFieldsExpression)
-
 
     // remove any batches with no rules. this may happen when subclasses do not add optional rules.
     batches.filter(_.rules.nonEmpty)

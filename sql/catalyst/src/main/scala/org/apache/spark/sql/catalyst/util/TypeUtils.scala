@@ -54,11 +54,12 @@ object TypeUtils {
   }
 
   def checkForMapKeyType(keyType: DataType): TypeCheckResult = {
-    if (keyType.existsRecursively(_.isInstanceOf[MapType])) {
-      TypeCheckResult.TypeCheckFailure("The key of map cannot be/contain map.")
-    } else {
-      TypeCheckResult.TypeCheckSuccess
-    }
+    TypeCheckResult.TypeCheckSuccess
+//    if (keyType.existsRecursively(_.isInstanceOf[MapType])) {
+//      TypeCheckResult.TypeCheckFailure("The key of map cannot be/contain map.")
+//    } else {
+//      TypeCheckResult.TypeCheckSuccess
+//    }
   }
 
   def getNumeric(t: DataType, exactNumericRequired: Boolean = false): Numeric[Any] = {
