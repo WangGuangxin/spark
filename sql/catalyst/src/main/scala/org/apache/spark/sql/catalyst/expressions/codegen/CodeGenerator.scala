@@ -737,14 +737,14 @@ class CodegenContext extends Logging {
            |    this.array = array;
            |  }
            |
-           |   @Override
-           |   public int compare(Object a, Object b) {
-           |     int indexA = ((Integer)a).intValue();
-           |     int indexB = ((Integer)b).intValue();
-           |     ${javaType(keyType)} keyA = ${getValue("array", keyType, "indexA")};
-           |     ${javaType(keyType)} keyB = ${getValue("array", keyType, "indexB")};
-           |     return ${genComp(keyType, "keyA", "keyB")};
-           |     }
+           |  @Override
+           |  public int compare(Object a, Object b) {
+           |    int indexA = ((Integer)a).intValue();
+           |    int indexB = ((Integer)b).intValue();
+           |    ${javaType(keyType)} keyA = ${getValue("array", keyType, "indexA")};
+           |    ${javaType(keyType)} keyB = ${getValue("array", keyType, "indexB")};
+           |    return ${genComp(keyType, "keyA", "keyB")};
+           |  }
            |}""".stripMargin)
 
       addNewFunction(compareKeyFunc,
@@ -798,7 +798,8 @@ class CodegenContext extends Logging {
            |  }
            |  return 0;
            |}
-           |""".stripMargin)
+           |""".stripMargin,
+        inlineToOuterClass = true)
       s"this.$compareMapFunc($c1, $c2)"
     case schema: StructType =>
       val comparisons = GenerateOrdering.genComparisons(this, schema)

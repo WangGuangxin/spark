@@ -33,12 +33,11 @@ CREATE OR REPLACE TEMPORARY VIEW t3 AS SELECT * FROM VALUES
   (map(map('b', 1, 'a', 1), map('world', array('o', 'p')))),
   (map(map('b', 2, 'a', 1), map('hello', array('m', 'n')))),
   (map(map('b', 2, 'a', 1), map('hello', array('i', 'j'))))
-  AS v(nested_map1)
+  AS v(nested_map)
 -- !query schema
 struct<>
 -- !query output
-org.apache.spark.sql.AnalysisException
-failed to evaluate expression map(map('a', 1, 'b', 2), map('hello', array('i', 'j'))): assertion failed: key of map cannot be/contain map; line 1 pos 53
+
 
 
 -- !query
@@ -135,8 +134,8 @@ select nested_map, count(1) from t3 group by nested_map
 -- !query schema
 struct<>
 -- !query output
-org.apache.spark.sql.AnalysisException
-Table or view not found: t3; line 1 pos 33
+java.util.concurrent.ExecutionException
+org.codehaus.commons.compiler.CompileException: File 'generated.java', Line 433, Column 13: failed to compile: org.codehaus.commons.compiler.CompileException: File 'generated.java', Line 433, Column 13: A method named "agg_compareMap_0" is not declared in any enclosing class nor any supertype, nor through a static import
 
 
 -- !query
@@ -144,8 +143,8 @@ select distinct nested_map from t3
 -- !query schema
 struct<>
 -- !query output
-org.apache.spark.sql.AnalysisException
-Table or view not found: t3; line 1 pos 32
+java.util.concurrent.ExecutionException
+org.codehaus.commons.compiler.CompileException: File 'generated.java', Line 429, Column 13: failed to compile: org.codehaus.commons.compiler.CompileException: File 'generated.java', Line 429, Column 13: A method named "agg_compareMap_0" is not declared in any enclosing class nor any supertype, nor through a static import
 
 
 -- !query
@@ -153,5 +152,5 @@ select nested_map from t3 order by nested_map
 -- !query schema
 struct<>
 -- !query output
-org.apache.spark.sql.AnalysisException
-Table or view not found: t3; line 1 pos 23
+java.util.concurrent.ExecutionException
+org.codehaus.commons.compiler.CompileException: File 'generated.java', Line 385, Column 13: failed to compile: org.codehaus.commons.compiler.CompileException: File 'generated.java', Line 385, Column 13: A method named "compareMap_2" is not declared in any enclosing class nor any supertype, nor through a static import

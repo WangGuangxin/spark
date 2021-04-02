@@ -71,6 +71,9 @@ object NormalizeMapType extends Rule[LogicalPlan] {
   }
 }
 
+/**
+ * This expression orders all maps in an expression's result.
+ */
 case class SortMapKeys(child: Expression) extends UnaryExpression with ExpectsInputTypes {
   private lazy val MapType(keyType, valueType, valueContainsNull) = dataType.asInstanceOf[MapType]
   private lazy val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)

@@ -20,7 +20,7 @@ CREATE OR REPLACE TEMPORARY VIEW t3 AS SELECT * FROM VALUES
   (map(map('b', 1, 'a', 1), map('world', array('o', 'p')))),
   (map(map('b', 2, 'a', 1), map('hello', array('m', 'n')))),
   (map(map('b', 2, 'a', 1), map('hello', array('i', 'j'))))
-  AS v(nested_map1);
+  AS v(nested_map);
 
 -- group by
 select m, count(1) from t group by m;
