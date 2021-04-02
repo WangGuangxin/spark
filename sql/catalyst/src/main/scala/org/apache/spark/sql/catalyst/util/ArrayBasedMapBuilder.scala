@@ -29,7 +29,7 @@ import org.apache.spark.unsafe.array.ByteArrayMethods
  * duplicated map keys w.r.t. the last wins policy.
  */
 class ArrayBasedMapBuilder(keyType: DataType, valueType: DataType) extends Serializable {
-  assert(!keyType.existsRecursively(_.isInstanceOf[MapType]), "key of map cannot be/contain map")
+  assert(!MapType.containsUnorderedMap(keyType), "key of map cannot be/contain unordered map")
 
   private lazy val keyToIndex = keyType match {
     // Binary type data is `byte[]`, which can't use `==` to check equality.

@@ -54,8 +54,8 @@ object TypeUtils {
   }
 
   def checkForMapKeyType(keyType: DataType): TypeCheckResult = {
-    if (keyType.existsRecursively(_.isInstanceOf[MapType])) {
-      TypeCheckResult.TypeCheckFailure("The key of map cannot be/contain map.")
+    if (MapType.containsUnorderedMap(keyType)) {
+      TypeCheckResult.TypeCheckFailure("The key of map cannot be/contain unordered map.")
     } else {
       TypeCheckResult.TypeCheckSuccess
     }

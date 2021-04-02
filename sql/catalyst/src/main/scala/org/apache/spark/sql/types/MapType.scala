@@ -85,11 +85,16 @@ case class MapType(
   }
 
   @transient
+  private[sql] lazy val interpretedKeyOrdering: Ordering[Any] =
+    TypeUtils.getInterpretedOrdering(keyType)
+
+  @transient
+  private[sql] lazy val interpretedValueOrdering: Ordering[Any] =
+    TypeUtils.getInterpretedOrdering(valueType)
+
+  @transient
   private[sql] lazy val interpretedOrdering: Ordering[MapData] = new Ordering[MapData] {
     assert(ordered)
-
-    private val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
-    private val valueOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(valueType)
 
     def compare(left: MapData, right: MapData): Int = {
       if (left.numElements() != right.numElements()) {
@@ -106,7 +111,7 @@ case class MapType(
       while (i < numElements) {
         val leftKey = leftKeys.get(i, keyType)
         val rightKey = rightKeys.get(i, keyType)
-        val keyComp = keyOrdering.compare(leftKey, rightKey)
+        val keyComp = interpretedKeyOrdering.compare(leftKey, rightKey)
         if (keyComp != 0) {
           return keyComp
         } else {
@@ -121,7 +126,7 @@ case class MapType(
           } else {
             val leftValue = leftValues.get(i, valueType)
             val rightValue = rightValues.get(i, valueType)
-            val valueComp = valueOrdering.compare(leftValue, rightValue)
+            val valueComp = interpretedValueOrdering.compare(leftValue, rightValue)
             if (valueComp != 0) {
               return valueComp
             }

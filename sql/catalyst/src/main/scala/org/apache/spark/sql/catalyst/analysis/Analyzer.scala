@@ -284,6 +284,7 @@ class Analyzer(override val catalogManager: CatalogManager)
       ResolveRandomSeed ::
       ResolveBinaryArithmetic ::
       ResolveUnion ::
+      SortMaps ::
       typeCoercionRules ++
       extendedResolutionRules : _*),
     Batch("Apply Char Padding", Once,
