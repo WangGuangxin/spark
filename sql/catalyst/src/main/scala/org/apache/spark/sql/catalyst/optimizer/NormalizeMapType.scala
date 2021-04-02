@@ -17,50 +17,40 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
-import scala.math.Ordering
-import org.apache.spark.sql.catalyst.expressions.codegen.CodegenContext
-import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator.{getValue, javaType}
-import org.apache.spark.sql.catalyst.expressions.codegen.ExprCode
-import org.apache.spark.sql.catalyst.expressions.{Alias, And, Attribute, BinaryComparison, EqualTo, ExpectsInputTypes, Expression, SortOrder, UnaryExpression}
+import org.apache.spark.sql.catalyst.expressions.{And, BinaryComparison, EqualTo, Expression, SortMapKeys, SortOrder}
 import org.apache.spark.sql.catalyst.planning.ExtractEquiJoinKeys
-import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, LogicalPlan, Window}
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Window}
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.util.{ArrayBasedMapBuilder, MapData, TypeUtils}
-import org.apache.spark.sql.types.{AbstractDataType, DataType, MapType}
+import org.apache.spark.sql.types.MapType
 
+/**
+ * When comparing two maps, we have to make sure two maps have the same key value pairs but
+ * with different key ordering are equal.
+ * For example, Map('a' -> 1, 'b' -> 2) equals to Map('b' -> 2, 'a' -> 1).
+ *
+ * We have to specially handle this in grouping/join/window because Spark SQL turns
+ * grouping/join/window partition keys into binary `UnsafeRow` and compare the
+ * binary data directly instead of using MapType's ordering. So in these cases, we have
+ * to insert an expression to sort map entries by key.
+ *
+ * Note that, this rule must be executed at the end of optimizer, because the optimizer may create
+ * new joins(the subquery rewrite) and new join conditions(the join reorder).
+ */
 object NormalizeMapType extends Rule[LogicalPlan] {
   def apply(plan: LogicalPlan): LogicalPlan = plan transformAllExpressions {
     case cmp @ BinaryComparison(left, right) if containsUnorderedMap(left) =>
-      cmp.withNewChildren(ReorderMapKey(left) :: right :: Nil)
+      cmp.withNewChildren(SortMapKeys(left) :: right :: Nil)
     case cmp @ BinaryComparison(left, right) if containsUnorderedMap(right) =>
-      cmp.withNewChildren(left :: ReorderMapKey(right) :: Nil)
+      cmp.withNewChildren(left :: SortMapKeys(right) :: Nil)
     case sort: SortOrder if containsUnorderedMap(sort.child) =>
-      sort.copy(child = ReorderMapKey(sort.child))
+      sort.copy(child = SortMapKeys(sort.child))
   } transform {
-    case a: Aggregate if a.groupingExpressions.exists(containsUnorderedMap) =>
-      // Modify the top level grouping expressions
-      val replacements = a.groupingExpressions.collect {
-        case a: Attribute if containsUnorderedMap(a) =>
-          a -> Alias(ReorderMapKey(a), a.name)(exprId = a.exprId, qualifier = a.qualifier)
-        case e if containsUnorderedMap(e) =>
-          e -> ReorderMapKey(e)
-      }
-
-      // Tranform the expression tree.
-      a.transformExpressionsUp {
-        case e =>
-          replacements
-            .find(_._1.semanticEquals(e))
-            .map(_._2)
-            .getOrElse(e)
-      }
-
-    case w: Window if w.partitionSpec.exists(p => needNormalize(p)) =>
+    case w: Window if w.partitionSpec.exists(p => containsUnorderedMap(p)) =>
       w.copy(partitionSpec = w.partitionSpec.map(normalize))
 
     case j @ ExtractEquiJoinKeys(_, leftKeys, rightKeys, condition, _, _, _)
       // The analyzer guarantees left and right joins keys are of the same data type.
-      if leftKeys.exists(k => needNormalize(k)) =>
+      if leftKeys.exists(k => containsUnorderedMap(k)) =>
       val newLeftJoinKeys = leftKeys.map(normalize)
       val newRightJoinKeys = rightKeys.map(normalize)
       val newConditions = newLeftJoinKeys.zip(newRightJoinKeys).map {
@@ -72,97 +62,8 @@ object NormalizeMapType extends Rule[LogicalPlan] {
   private def containsUnorderedMap(e: Expression): Boolean =
     MapType.containsUnorderedMap(e.dataType)
 
-  private def needNormalize(expr: Expression): Boolean = expr match {
-    case ReorderMapKey(_) => false
-    case e if e.dataType.isInstanceOf[MapType] => true
-    case _ => false
-  }
-
   private[sql] def normalize(expr: Expression): Expression = expr match {
-    case _ if !needNormalize(expr) => expr
-    case e if e.dataType.isInstanceOf[MapType] =>
-      ReorderMapKey(e)
-  }
-}
-
-case class ReorderMapKey(child: Expression) extends UnaryExpression with ExpectsInputTypes {
-  private val MapType(keyType, valueType, valueContainsNull, _) = dataType.asInstanceOf[MapType]
-  private lazy val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
-  private lazy val mapBuilder = new ArrayBasedMapBuilder(keyType, valueType)
-
-  override def inputTypes: Seq[AbstractDataType] = Seq(MapType)
-
-  override def dataType: DataType = new MapType(keyType, valueType, valueContainsNull, true)
-
-  override def nullSafeEval(input: Any): Any = {
-    val childMap = input.asInstanceOf[MapData]
-    val childMapKey = childMap.keyArray()
-    val childMapValue = childMap.valueArray()
-    val sortedKeyIndex = (0 until childMap.numElements()).toArray.sorted(new Ordering[Int] {
-      override def compare(a: Int, b: Int): Int = {
-        keyOrdering.compare(childMapKey.get(a, keyType), childMapKey.get(b, keyType))
-      }
-    })
-
-    var i = 0
-    while (i < childMap.numElements()) {
-      val index = sortedKeyIndex(i)
-      mapBuilder.put(
-        childMapKey.get(index, keyType),
-        childMapValue.get(index, valueType))
-
-      i += 1
-    }
-
-    mapBuilder.build()
-  }
-
-  override protected def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
-    val initIndexArrayFunc = ctx.freshName("initIndexArray")
-    val numElements = ctx.freshName("numElements")
-    val sortedKeyIndex = ctx.freshName("sortedKeyIndex")
-    val keyArray = ctx.freshName("keyArray")
-    val valueArray = ctx.freshName("valueArray")
-    val idx = ctx.freshName("idx")
-    val builderTerm = ctx.addReferenceObj("mapBuilder", mapBuilder)
-    ctx.addNewFunction(initIndexArrayFunc,
-      s"""
-         |private Integer[] $initIndexArrayFunc(int n) {
-         |  Integer[] arr = new Integer[n];
-         |  for (int i = 0; i < n; i++) {
-         |    arr[i] = i;
-         |  }
-         |  return arr;
-         |}""".stripMargin)
-
-    val codeToNormalize = (f: String) => {
-      s"""
-         |int $numElements = $f.numElements();
-         |Integer[] $sortedKeyIndex = $initIndexArrayFunc($numElements);
-         |final ArrayData $keyArray = $f.keyArray();
-         |final ArrayData $valueArray = $f.valueArray();
-         |java.util.Arrays.sort($sortedKeyIndex, new java.util.Comparator<Integer>() {
-         |   @Override
-         |   public int compare(Object a, Object b) {
-         |     Integer indexA = (Integer)a;
-         |     Integer indexB = (Integer)b;
-         |     ${javaType(keyType)} keyA = ${getValue(keyArray, keyType, "indexA")};
-         |     ${javaType(keyType)} keyB = ${getValue(keyArray, keyType, "indexB")};
-         |     return ${ctx.genComp(keyType, "keyA", "keyB")};
-         |   }
-         |});
-         |
-         |for (int $idx = 0; $idx < $numElements; $idx++) {
-         |  Integer index = $sortedKeyIndex[$idx];
-         |  $builderTerm.put(
-         |    ${getValue(keyArray, keyType, "index")},
-         |    ${getValue(valueArray, valueType, "index")});
-         |}
-         |
-         |${ev.value} = $builderTerm.build();
-         |""".stripMargin
-    }
-
-    nullSafeCodeGen(ctx, ev, codeToNormalize)
+    case e if containsUnorderedMap(e) => SortMapKeys(e)
+    case o => o
   }
 }

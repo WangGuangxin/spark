@@ -85,52 +85,59 @@ case class MapType(
   }
 
   @transient
+  private[sql] lazy val interpretedKeyOrdering: Ordering[Any] =
+    TypeUtils.getInterpretedOrdering(keyType)
+
+  @transient
+  private[sql] lazy val interpretedValueOrdering: Ordering[Any] =
+    TypeUtils.getInterpretedOrdering(valueType)
+
+  @transient
   private[sql] lazy val interpretedOrdering: Ordering[MapData] = new Ordering[MapData] {
     assert(ordered)
 
-    private val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
-    private val valueOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(valueType)
+    val keyOrdering = interpretedKeyOrdering
+    val valueOrdering = interpretedValueOrdering
 
     def compare(left: MapData, right: MapData): Int = {
-      if (left.numElements() != right.numElements()) {
-        return left.numElements() - right.numElements()
-      }
-
-      val numElements = left.numElements()
       val leftKeys = left.keyArray()
-      val rightKeys = right.keyArray()
       val leftValues = left.valueArray()
+      val rightKeys = right.keyArray()
       val rightValues = right.valueArray()
-
+      val minLength = scala.math.min(leftKeys.numElements(), rightKeys.numElements())
       var i = 0
-      while (i < numElements) {
-        val leftKey = leftKeys.get(i, keyType)
-        val rightKey = rightKeys.get(i, keyType)
-        val keyComp = keyOrdering.compare(leftKey, rightKey)
+      while (i < minLength) {
+        val keyComp = keyOrdering.compare(leftKeys.get(i, keyType), rightKeys.get(i, keyType))
         if (keyComp != 0) {
           return keyComp
+        }
+        // TODO this has been taken from ArrayData. Perhaps we should factor out the common code.
+        val isNullLeft = leftValues.isNullAt(i)
+        val isNullRight = rightValues.isNullAt(i)
+        if (isNullLeft && isNullRight) {
+          // Do nothing.
+        } else if (isNullLeft) {
+          return -1
+        } else if (isNullRight) {
+          return 1
         } else {
-          val leftValueIsNull = leftValues.isNullAt(i)
-          val rightValueIsNull = rightValues.isNullAt(i)
-          if (leftValueIsNull && rightValueIsNull) {
-            return 0
-          } else if (leftValueIsNull) {
-            return -1
-          } else if (rightValueIsNull) {
-            return 1
-          } else {
-            val leftValue = leftValues.get(i, valueType)
-            val rightValue = rightValues.get(i, valueType)
-            val valueComp = valueOrdering.compare(leftValue, rightValue)
-            if (valueComp != 0) {
-              return valueComp
-            }
+          val comp = valueOrdering.compare(
+            leftValues.get(i, valueType),
+            rightValues.get(i, valueType))
+          if (comp != 0) {
+            return comp
           }
         }
         i += 1
       }
-
-      0
+      val diff = left.numElements() - right.numElements()
+      if (diff < 0) {
+        -1
+      } else if (diff > 0) {
+        1
+      } else {
+        0
+      }
     }
   }
 }

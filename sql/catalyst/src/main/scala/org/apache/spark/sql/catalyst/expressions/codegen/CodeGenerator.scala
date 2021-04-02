@@ -688,87 +688,47 @@ class CodegenContext extends Logging {
           }
         """
       s"${addNewFunction(compareFunc, funcCode)}($c1, $c2)"
-    case _ @ MapType(keyType, valueType, valueContainsNull, _) =>
-      val compareMapFunc = freshName("compareMap")
-
-      val compareKeyFunc = freshName("compareKey")
-      val compareValueFunc = freshName("compareValue")
-      val nullValueCheck = if (valueContainsNull) {
-        s"""
-           |boolean isNullA = leftArray.isNullAt(leftIndex);
-           |boolean isNullB = rightArray.isNullAt(rightIndex);
-           |if (isNullA && isNullB) {
-           |  return 0;
-           |} else if (isNullA) {
-           |  return -1;
-           |} else if (isNullB) {
-           |  return 1;
-           |}
-           |""".stripMargin
-      } else {
-        ""
-      }
-
-      addNewFunction(compareKeyFunc,
-        s"""
-           |private int $compareKeyFunc(ArrayData leftArray, int leftIndex, ArrayData rightArray,
-           |    int rightIndex) {
-           |  ${javaType(keyType)} left = ${getValue("leftArray", keyType, "leftIndex")};
-           |  ${javaType(keyType)} right = ${getValue("rightArray", keyType, "rightIndex")};
-           |  return ${genComp(keyType, "left", "right")};
-           |}
-           |""".stripMargin)
-
-      addNewFunction(compareValueFunc,
-        s"""
-           |private int $compareValueFunc(ArrayData leftArray, int leftIndex, ArrayData rightArray,
-           |    int rightIndex) {
-           |  $nullValueCheck
-           |  ${javaType(valueType)} left = ${getValue("leftArray", valueType, "leftIndex")};
-           |  ${javaType(valueType)} right = ${getValue("rightArray", valueType, "rightIndex")};
-           |  return ${genComp(valueType, "left", "right")};
-           |}
-           |""".stripMargin)
-
-      addNewFunction(compareMapFunc,
-        s"""
-           |public int $compareMapFunc(MapData left, MapData right) {
-           |  if (left.numElements() != right.numElements()) {
-           |    return left.numElements() - right.numElements();
-           |  }
-           |
-           |  int numElements = left.numElements();
-           |  for (int i = 0; i < numElements; i++) {
-           |    int keyComp = $compareKeyFunc(left.keyArray(), i, right.keyArray(), i);
-           |    if (keyComp != 0) {
-           |      return keyComp;
-           |    } else {
-           |      int valueComp = $compareValueFunc(left.valueArray(), i, right.valueArray(), i);
-           |      if (valueComp != 0) {
-           |        return valueComp;
-           |      }
-           |    }
-           |  }
-           |  return 0;
-           |}
-           |""".stripMargin)
-      s"this.$compareMapFunc($c1, $c2)"
-    case schema: StructType =>
-      val comparisons = GenerateOrdering.genComparisons(this, schema)
-      val compareFunc = freshName("compareStruct")
+    case MapType(keyType, valueType, _, true) =>
+      val compareFunc = freshName("compareMap")
       val funcCode: String =
         s"""
-          public int $compareFunc(InternalRow a, InternalRow b) {
-            // when comparing unsafe rows, try equals first as it compares the binary directly
-            // which is very fast.
-            if (a instanceof UnsafeRow && b instanceof UnsafeRow && a.equals(b)) {
-              return 0;
+          public int $compareFunc(MapData a, MapData b) {
+            int lengthA = a.numElements();
+            int lengthB = b.numElements();
+            ArrayData aKeys = a.keyArray();
+            ArrayData aValues = a.valueArray();
+            ArrayData bKeys = b.keyArray();
+            ArrayData bValues = b.valueArray();
+            int minLength = (lengthA > lengthB) ? lengthB : lengthA;
+            for (int i = 0; i < minLength; i++) {
+              ${javaType(keyType)} keyA = ${getValue("aKeys", keyType, "i")};
+              ${javaType(keyType)} keyB = ${getValue("bKeys", keyType, "i")};
+              int comp = ${genComp(keyType, "keyA", "keyB")};
+              if (comp != 0) {
+                return comp;
+              }
+              boolean isNullA = aValues.isNullAt(i);
+              boolean isNullB = bValues.isNullAt(i);
+              if (isNullA && isNullB) {
+                // Nothing
+              } else if (isNullA) {
+                return -1;
+              } else if (isNullB) {
+                return 1;
+              } else {
+                ${javaType(valueType)} valueA = ${getValue("aValues", valueType, "i")};
+                ${javaType(valueType)} valueB = ${getValue("bValues", valueType, "i")};
+                comp = ${genComp(valueType, "valueA", "valueB")};
+                if (comp != 0) {
+                  return comp;
+                }
+              }
             }
-            $comparisons
-            return 0;
+            return lengthA - lengthB;
           }
         """
-      s"${addNewFunction(compareFunc, funcCode)}($c1, $c2)"
+      addNewFunction(compareFunc, funcCode)
+      s"this.$compareFunc($c1, $c2)"
     case other if other.isInstanceOf[AtomicType] => s"$c1.compare($c2)"
     case udt: UserDefinedType[_] => genComp(udt.sqlType, c1, c2)
     case _ =>
