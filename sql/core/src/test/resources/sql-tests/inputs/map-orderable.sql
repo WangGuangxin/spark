@@ -51,6 +51,24 @@ select m, m2 from t join t2 on t.m = t2.m2;
 -- filter by map
 select m from t where m = map('b', 2, 'a', 1, 'c', 3);
 
+-- in map type
+select m from t where m in (map('b', 2, 'a', 1, 'c', 3), map('d', 4), map('fake', 9));
+
+-- intersect
+select * from t intersect select * from t2;
+
+-- intersect all
+select * from t intersect all select * from t2;
+
+-- except
+select * from t except select * from t2;
+
+-- except all
+select * from t except all select * from t2;
+
+-- union
+select * from t union select * from t2;
+
 -- group by map with nested type
 select nested_map, count(1) from t3 group by nested_map;
 

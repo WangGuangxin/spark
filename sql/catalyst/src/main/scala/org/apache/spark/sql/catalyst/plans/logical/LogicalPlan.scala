@@ -213,7 +213,7 @@ abstract class OrderPreservingUnaryNode extends UnaryNode {
   override final def outputOrdering: Seq[SortOrder] = child.outputOrdering
 }
 
-object LogicalPlanIntegrity {
+object LogicalPlanIntegrity extends Logging {
 
   private def canGetOutputAttrs(p: LogicalPlan): Boolean = {
     p.resolved && !p.expressions.exists { e =>
@@ -279,6 +279,17 @@ object LogicalPlanIntegrity {
    * plans based on this assumption.
    */
   def checkIfExprIdsAreGloballyUnique(plan: LogicalPlan): Boolean = {
-    checkIfSameExprIdNotReused(plan) && hasUniqueExprIdsForOutput(plan)
+    val a = checkIfSameExprIdNotReused(plan)
+    if (!a) {
+      throw new RuntimeException(
+        s"checkIfSameExprIdNotReused return false. plan is ${plan.treeString}")
+    } else {
+      val b = hasUniqueExprIdsForOutput(plan)
+      if (!b) {
+        throw new RuntimeException(
+          s"hasUniqueExprIdsForOutput return false. plan is ${plan.treeString}")
+      }
+    }
+    return true
   }
 }

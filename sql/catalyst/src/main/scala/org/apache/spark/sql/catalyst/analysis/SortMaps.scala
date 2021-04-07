@@ -34,6 +34,8 @@ object SortMaps extends Rule[LogicalPlan] {
       cmp.withNewChildren(OrderMaps(left) :: OrderMaps(right) :: Nil)
     case sort: SortOrder if containsUnorderedMap(sort.child) =>
       sort.copy(child = OrderMaps(sort.child))
+    case s @ SetOperation(left, right) if left.output.exists(containsUnorderedMap) || right.output.exists(containsUnorderedMap) =>
+      val newLeft = left()
     case mc: MapConcat if mc.children.exists(containsUnorderedMap) =>
       val newChildren = mc.children.map { a =>
         if (containsUnorderedMap(a)) {
@@ -56,6 +58,16 @@ object SortMaps extends Rule[LogicalPlan] {
       cm.withNewChildren(newChildren)
     case mfa: MapFromArrays if containsUnorderedMap(mfa.left) =>
       mfa.copy(left = OrderMaps(mfa.left))
+    case i @ In(value, list) if containsUnorderedMap(value) =>
+      val newList = list.map { a =>
+        if (containsUnorderedMap(a)) {
+          OrderMaps(a)
+        } else {
+          a
+        }
+      }
+      i.copy(value = OrderMaps(value), list = newList)
+
   } resolveOperators {
     case a: Aggregate if a.resolved && a.groupingExpressions.exists(containsUnorderedMap) =>
       // Modify the top level grouping expressions

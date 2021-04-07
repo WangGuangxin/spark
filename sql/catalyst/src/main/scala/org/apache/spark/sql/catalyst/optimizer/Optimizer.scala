@@ -45,6 +45,19 @@ abstract class Optimizer(catalogManager: CatalogManager)
   // - only host special expressions in supported operators
   // - has globally-unique attribute IDs
   override protected def isPlanIntegral(plan: LogicalPlan): Boolean = {
+    if (!plan.resolved) {
+//      val notResolved = plan.expressions.filter(!_.resolved).map(_.toString).mkString(",")
+//      val notResolved2 = plan.children.filter(!_.resolved).map(_.toString).mkString(",")
+//      throw new RuntimeException(s"plan is not resolved. $notResolved. $notResolved2")
+      val unresolved = plan collect {
+        case e if e.isInstanceOf[Join] => e
+      }
+      val j = unresolved.head.asInstanceOf[Join]
+      throw new RuntimeException(s"plan is not resolved. " +
+        s"${j.childrenResolved}, ${j.duplicateResolved}. " +
+        s"${j.expressions.filter(!_.resolved).mkString(",")}. " +
+          s"${j.condition.forall(_.dataType == BooleanType)}")
+    }
     !Utils.isTesting || (plan.resolved &&
       plan.find(PlanHelper.specialExpressionsInUnsupportedOperator(_).nonEmpty).isEmpty &&
       LogicalPlanIntegrity.checkIfExprIdsAreGloballyUnique(plan))

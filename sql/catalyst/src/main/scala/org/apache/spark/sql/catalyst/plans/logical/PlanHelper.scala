@@ -50,6 +50,10 @@ object PlanHelper {
           if !plan.isInstanceOf[Generate] => e
       }
     }
+    if (invalidExpressions.length > 0) {
+      throw new RuntimeException(s"specialExpressionsInUnsupportedOperator. " +
+        s"${invalidExpressions.map(_.toString).mkString(",")}")
+    }
     invalidExpressions
   }
 }

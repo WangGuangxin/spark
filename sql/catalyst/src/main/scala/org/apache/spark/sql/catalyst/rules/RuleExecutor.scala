@@ -230,7 +230,9 @@ abstract class RuleExecutor[TreeType <: TreeNode[_]] extends Logging {
             // Run the structural integrity checker against the plan after each rule.
             if (effective && !isPlanIntegral(result)) {
               val message = s"After applying rule ${rule.ruleName} in batch ${batch.name}, " +
-                "the structural integrity of the plan is broken."
+                s"the structural integrity of the plan is broken. " +
+                s"plan is ${plan.treeString}. " +
+                s"result is ${result.treeString}"
               throw new RuntimeException(message)
             }
 
