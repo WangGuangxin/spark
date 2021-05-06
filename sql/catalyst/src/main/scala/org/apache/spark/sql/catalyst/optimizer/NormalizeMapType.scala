@@ -19,7 +19,7 @@ package org.apache.spark.sql.catalyst.optimizer
 
 import scala.math.Ordering
 
-import org.apache.spark.sql.catalyst.expressions.{And, EqualTo, ExpectsInputTypes, Expression, UnaryExpression}
+import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenContext
 import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator.{getValue, javaType}
 import org.apache.spark.sql.catalyst.expressions.codegen.ExprCode
@@ -43,7 +43,18 @@ import org.apache.spark.sql.types.{AbstractDataType, DataType, MapType}
  * new joins(the subquery rewrite) and new join conditions(the join reorder).
  */
 object NormalizeMapType extends Rule[LogicalPlan] {
-  def apply(plan: LogicalPlan): LogicalPlan = plan transform {
+  def apply(plan: LogicalPlan): LogicalPlan = plan transformAllExpressions {
+    case b @ BinaryExpression(left, right) if needNormalize(left) =>
+      b.withNewChildren(normalize(left) :: normalize(right) :: Nil)
+    case sort: SortOrder if needNormalize(sort.child) =>
+      val newChild = normalize(sort.child)
+      sort.copy(child = newChild)
+    case cm @ CreateMap(children, _) if children.exists(needNormalize) =>
+      cm.copy(children = children.map(normalize))
+//    case m @ MapFromArrays(left, right) if needNormalize(left) =>
+//      m.copy()
+//    case i @ In(value, list) if containsUnorderedMap(value) =>
+  } transform {
     case w: Window if w.partitionSpec.exists(p => needNormalize(p)) =>
       w.copy(partitionSpec = w.partitionSpec.map(normalize))
 

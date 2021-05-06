@@ -694,6 +694,7 @@ class CodegenContext extends Logging {
       val keyIndexComparator = freshName("keyIndexComparator")
       val compareKeyFunc = freshName("compareKey")
       val compareValueFunc = freshName("compareValue")
+
       val nullSafeCompare =
         s"""
            |${javaType(valueType)} left = ${getValue("leftArray", valueType, "leftIndex")};
@@ -765,7 +766,7 @@ class CodegenContext extends Logging {
            |}
            |""".stripMargin)
 
-      addNewFunction(compareMapFunc,
+      val compareMap = addNewFunction(compareMapFunc,
         s"""
            |public int $compareMapFunc(MapData left, MapData right) {
            |  if (left.numElements() != right.numElements()) {
@@ -798,9 +799,8 @@ class CodegenContext extends Logging {
            |  }
            |  return 0;
            |}
-           |""".stripMargin,
-        inlineToOuterClass = true)
-      s"this.$compareMapFunc($c1, $c2)"
+           |""".stripMargin)
+      s"$compareMap($c1, $c2)"
     case schema: StructType =>
       val comparisons = GenerateOrdering.genComparisons(this, schema)
       val compareFunc = freshName("compareStruct")
@@ -1506,7 +1506,7 @@ object CodeGenerator extends Logging {
     )
     evaluator.setExtendedClass(classOf[GeneratedClass])
 
-    logDebug({
+    logWarning({
       // Only add extra debugging info to byte code when we are going to print the source code.
       evaluator.setDebuggingInformation(true, true, false)
       s"\n${CodeFormatter.format(code)}"
