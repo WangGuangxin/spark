@@ -17,17 +17,11 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
-import scala.math.Ordering
-
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.expressions.codegen.CodegenContext
-import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator.{getValue, javaType}
-import org.apache.spark.sql.catalyst.expressions.codegen.ExprCode
 import org.apache.spark.sql.catalyst.planning.ExtractEquiJoinKeys
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Window}
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.util.{ArrayBasedMapBuilder, MapData, TypeUtils}
-import org.apache.spark.sql.types.{AbstractDataType, DataType, MapType}
+import org.apache.spark.sql.types.MapType
 
 /**
  * When comparing two maps, we have to make sure two maps have the same key value pairs but
@@ -44,23 +38,19 @@ import org.apache.spark.sql.types.{AbstractDataType, DataType, MapType}
  */
 object NormalizeMapType extends Rule[LogicalPlan] {
   def apply(plan: LogicalPlan): LogicalPlan = plan transformAllExpressions {
-    case b @ BinaryExpression(left, right) if needNormalize(left) =>
-      b.withNewChildren(normalize(left) :: normalize(right) :: Nil)
-    case sort: SortOrder if needNormalize(sort.child) =>
-      val newChild = normalize(sort.child)
-      sort.copy(child = newChild)
-    case cm @ CreateMap(children, _) if children.exists(needNormalize) =>
-      cm.copy(children = children.map(normalize))
-//    case m @ MapFromArrays(left, right) if needNormalize(left) =>
-//      m.copy()
-//    case i @ In(value, list) if containsUnorderedMap(value) =>
+    case cmp @ BinaryComparison(left, right) if containsUnorderedMap(left) =>
+      cmp.withNewChildren(SortMapKeys(left) :: right :: Nil)
+    case cmp @ BinaryComparison(left, right) if containsUnorderedMap(right) =>
+      cmp.withNewChildren(left :: SortMapKeys(right) :: Nil)
+    case sort: SortOrder if containsUnorderedMap(sort.child) =>
+      sort.copy(child = SortMapKeys(sort.child))
   } transform {
-    case w: Window if w.partitionSpec.exists(p => needNormalize(p)) =>
+    case w: Window if w.partitionSpec.exists(p => containsUnorderedMap(p)) =>
       w.copy(partitionSpec = w.partitionSpec.map(normalize))
 
     case j @ ExtractEquiJoinKeys(_, leftKeys, rightKeys, condition, _, _, _)
       // The analyzer guarantees left and right joins keys are of the same data type.
-      if leftKeys.exists(k => needNormalize(k)) =>
+      if leftKeys.exists(k => containsUnorderedMap(k)) =>
       val newLeftJoinKeys = leftKeys.map(normalize)
       val newRightJoinKeys = rightKeys.map(normalize)
       val newConditions = newLeftJoinKeys.zip(newRightJoinKeys).map {
@@ -69,101 +59,18 @@ object NormalizeMapType extends Rule[LogicalPlan] {
       j.copy(condition = Some(newConditions.reduce(And)))
   }
 
-  private def needNormalize(expr: Expression): Boolean = expr match {
-    case SortMapKeys(_) => false
-    case e if e.dataType.isInstanceOf[MapType] => true
-    case _ => false
+  /**
+   * Check if a dataType contains an unordered map.
+   */
+  private def containsUnorderedMap(e: Expression): Boolean = {
+    e.dataType.existsRecursively {
+      case _: MapType => true
+      case _ => false
+    }
   }
 
   private[sql] def normalize(expr: Expression): Expression = expr match {
-    case _ if !needNormalize(expr) => expr
-    case e if e.dataType.isInstanceOf[MapType] =>
-      SortMapKeys(e)
-  }
-}
-
-/**
- * This expression orders all maps in an expression's result.
- */
-case class SortMapKeys(child: Expression) extends UnaryExpression with ExpectsInputTypes {
-  private lazy val MapType(keyType, valueType, valueContainsNull) = dataType.asInstanceOf[MapType]
-  private lazy val keyOrdering: Ordering[Any] = TypeUtils.getInterpretedOrdering(keyType)
-  private lazy val mapBuilder = new ArrayBasedMapBuilder(keyType, valueType)
-
-  override def inputTypes: Seq[AbstractDataType] = Seq(MapType)
-
-  override def dataType: DataType = child.dataType
-
-  override def nullSafeEval(input: Any): Any = {
-    val childMap = input.asInstanceOf[MapData]
-    val keys = childMap.keyArray()
-    val values = childMap.valueArray()
-    val sortedKeyIndex = (0 until childMap.numElements()).toArray.sorted(new Ordering[Int] {
-      override def compare(a: Int, b: Int): Int = {
-        keyOrdering.compare(keys.get(a, keyType), keys.get(b, keyType))
-      }
-    })
-
-    var i = 0
-    while (i < childMap.numElements()) {
-      val index = sortedKeyIndex(i)
-      mapBuilder.put(
-        keys.get(index, keyType),
-        if (values.isNullAt(index)) null else values.get(index, valueType))
-
-      i += 1
-    }
-
-    mapBuilder.build()
-  }
-
-  override protected def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
-    val initIndexArrayFunc = ctx.freshName("initIndexArray")
-    val numElements = ctx.freshName("numElements")
-    val sortedKeyIndex = ctx.freshName("sortedKeyIndex")
-    val keyArray = ctx.freshName("keyArray")
-    val valueArray = ctx.freshName("valueArray")
-    val idx = ctx.freshName("idx")
-    val index = ctx.freshName("index")
-    val builderTerm = ctx.addReferenceObj("mapBuilder", mapBuilder)
-    ctx.addNewFunction(initIndexArrayFunc,
-      s"""
-         |private Integer[] $initIndexArrayFunc(int n) {
-         |  Integer[] arr = new Integer[n];
-         |  for (int i = 0; i < n; i++) {
-         |    arr[i] = i;
-         |  }
-         |  return arr;
-         |}""".stripMargin)
-
-    val codeToNormalize = (f: String) => {
-      s"""
-         |int $numElements = $f.numElements();
-         |Integer[] $sortedKeyIndex = $initIndexArrayFunc($numElements);
-         |final ArrayData $keyArray = $f.keyArray();
-         |final ArrayData $valueArray = $f.valueArray();
-         |java.util.Arrays.sort($sortedKeyIndex, new java.util.Comparator<Integer>() {
-         |   @Override
-         |   public int compare(Object a, Object b) {
-         |     int indexA = ((Integer)a).intValue();
-         |     int indexB = ((Integer)b).intValue();
-         |     ${javaType(keyType)} keyA = ${getValue(keyArray, keyType, "indexA")};
-         |     ${javaType(keyType)} keyB = ${getValue(keyArray, keyType, "indexB")};
-         |     return ${ctx.genComp(keyType, "keyA", "keyB")};
-         |   }
-         |});
-         |
-         |for (int $idx = 0; $idx < $numElements; $idx++) {
-         |  Integer $index = $sortedKeyIndex[$idx];
-         |  $builderTerm.put(
-         |    ${getValue(keyArray, keyType, index)},
-         |    $valueArray.isNullAt($index) ? null : ${getValue(valueArray, valueType, index)});
-         |}
-         |
-         |${ev.value} = $builderTerm.build();
-         |""".stripMargin
-    }
-
-    nullSafeCodeGen(ctx, ev, codeToNormalize)
+    case e if containsUnorderedMap(e) => SortMapKeys(e)
+    case o => o
   }
 }
