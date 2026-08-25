@@ -23012,6 +23012,38 @@ def is_variant_null(v: "ColumnOrName") -> Column:
 
 
 @_try_remote_functions
+def variant_object_keys(v: "ColumnOrName") -> Column:
+    """
+    Returns all the keys of the outermost variant object as an array. If it is any other variant
+    value, the function returns None.
+
+    .. versionadded:: 4.4.0
+
+    Parameters
+    ----------
+    v : :class:`~pyspark.sql.Column` or str
+        a variant column or column name
+        A column that evaluates to a variant.
+
+    Returns
+    -------
+    :class:`~pyspark.sql.Column`
+        all the keys of the outermost variant object.
+        Returns a column that evaluates to an array.
+
+    Examples
+    --------
+    >>> df = spark.createDataFrame(
+    ...     [('{"key1":1, "key2":2}',), ('[1, 2, 3]',)], ['json'])
+    >>> df.select(variant_object_keys(parse_json(df.json)).alias('r')).collect()
+    [Row(r=['key1', 'key2']), Row(r=None)]
+    """
+    from pyspark.sql.classic.column import _to_java_column
+
+    return _invoke_function("variant_object_keys", _to_java_column(v))
+
+
+@_try_remote_functions
 def is_valid_variant(v: "ColumnOrName") -> Column:
     """
     Check if a variant value is valid. Returns true if the variant is valid, false if it is

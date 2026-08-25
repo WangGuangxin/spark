@@ -616,6 +616,7 @@ VARIANT Functions
     variant_delete
     variant_from_arrays
     variant_from_entries
+    variant_object_keys
     variant_strip_nulls
     variant_get
     variant_insert

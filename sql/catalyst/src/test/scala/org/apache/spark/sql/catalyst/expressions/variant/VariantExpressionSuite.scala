@@ -1383,6 +1383,24 @@ class VariantExpressionSuite extends SparkFunSuite with ExpressionEvalHelper {
     checkEvaluation(IsValidVariant(Literal.create(null, VariantType)), null)
   }
 
+  test("variant_object_keys") {
+    def check(input: String, expected: Seq[String]): Unit = {
+      checkEvaluation(
+        VariantObjectKeys(Literal(parseJson(input))),
+        expected.map(UTF8String.fromString))
+    }
+
+    check("{}", Nil)
+    check("""{"a": 1}""", Seq("a"))
+    check("""{"a": 1, "b": {"c": true}, "d": [1, 2]}""", Seq("a", "b", "d"))
+    check("""{"field.name": 1, "": 2}""", Seq("", "field.name"))
+
+    Seq("[]", "1", "\"x\"", "true", "null").foreach { input =>
+      checkEvaluation(VariantObjectKeys(Literal(parseJson(input))), null)
+    }
+    checkEvaluation(VariantObjectKeys(Literal.create(null, VariantType)), null)
+  }
+
   test("variant_delete") {
     def checkDelete(input: String, paths: Seq[String], expected: String): Unit = {
       val pathLits: Seq[Expression] = paths.map(p => Literal.create(p, StringType))

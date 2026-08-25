@@ -342,6 +342,19 @@ class VariantEndToEndSuite extends SharedSparkSession {
     check("{ \"a\": null, \"b\": {\"c\": null, \"d\": [13, null]} }", "$.b.d[2]", expected = false)
   }
 
+  test("variant_object_keys") {
+    checkAnswer(
+      sql(
+        """
+          |SELECT variant_object_keys(parse_json('{"a": 1, "b": {"c": 2}, "d": [1, 2]}')),
+          |       variant_object_keys(parse_json('{}')),
+          |       variant_object_keys(parse_json('[1, 2, 3]')),
+          |       variant_object_keys(parse_json('null')),
+          |       variant_object_keys(CAST(NULL AS VARIANT))
+          |""".stripMargin),
+      Seq(Row(Seq("a", "b", "d"), Seq.empty[String], null, null, null)))
+  }
+
   test("schema_of_variant_agg") {
     // Literal input.
     checkAnswer(

@@ -495,6 +495,7 @@ __all__ = [  # noqa: F405
     "variant_delete",
     "variant_from_arrays",
     "variant_from_entries",
+    "variant_object_keys",
     "variant_strip_nulls",
     "variant_get",
     "variant_insert",

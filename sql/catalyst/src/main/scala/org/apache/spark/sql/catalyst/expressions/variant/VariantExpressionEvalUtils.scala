@@ -21,7 +21,7 @@ import scala.util.control.NonFatal
 
 import org.apache.spark.SparkRuntimeException
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.util.{ArrayData, MapData}
+import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData, MapData}
 import org.apache.spark.sql.errors.QueryExecutionErrors
 import org.apache.spark.sql.types._
 import org.apache.spark.types.variant.{Variant, VariantBuilder, VariantPathTypeMismatchException, VariantSizeLimitException, VariantUtil}
@@ -75,6 +75,22 @@ object VariantExpressionEvalUtils {
 
   def isValidVariant(input: VariantVal): Boolean =
     VariantUtil.isValidVariant(input.getValue, input.getMetadata)
+
+  def variantObjectKeys(input: VariantVal): ArrayData = {
+    val v = new Variant(input.getValue, input.getMetadata)
+    if (v.getType != VariantUtil.Type.OBJECT) {
+      null
+    } else {
+      val size = v.objectSize()
+      val result = new Array[Any](size)
+      var i = 0
+      while (i < size) {
+        result(i) = UTF8String.fromString(v.getFieldAtIndex(i).key)
+        i += 1
+      }
+      new GenericArrayData(result)
+    }
+  }
 
   /**
    * Parse a JSONPath for a variant manipulation function. Throws `INVALID_VARIANT_PATH` on a

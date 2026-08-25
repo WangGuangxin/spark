@@ -3769,6 +3769,13 @@ class FunctionsTestsMixin:
         ).collect()
         self.assertEqual("""{"a":1,"b":2}""", actual2[0]["var"])
 
+    def test_variant_object_keys(self):
+        df = self.spark.createDataFrame(
+            [('{"a":1, "b":{"c":2}}',), ("[1, 2]",), (None,)], ["json"]
+        )
+        actual = df.select(F.variant_object_keys(F.parse_json("json")).alias("keys")).collect()
+        self.assertEqual([["a", "b"], None, None], [row["keys"] for row in actual])
+
     def test_schema_of_csv(self):
         with self.assertRaises(PySparkTypeError) as pe:
             F.schema_of_csv(1)

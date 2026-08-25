@@ -2243,6 +2243,13 @@ def is_variant_null(v: "ColumnOrName") -> Column:
 is_variant_null.__doc__ = pysparkfuncs.is_variant_null.__doc__
 
 
+def variant_object_keys(v: "ColumnOrName") -> Column:
+    return _invoke_function("variant_object_keys", _to_col(v))
+
+
+variant_object_keys.__doc__ = pysparkfuncs.variant_object_keys.__doc__
+
+
 def is_valid_variant(v: "ColumnOrName") -> Column:
     return _invoke_function("is_valid_variant", _to_col(v))
 

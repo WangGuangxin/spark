@@ -14427,6 +14427,19 @@ object functions {
   def is_variant_null(v: Column): Column = Column.fn("is_variant_null", v)
 
   /**
+   * Returns all the keys of the outermost variant object as an array. If it is any other variant
+   * value, the function returns null.
+   *
+   * @param v
+   *   a variant column. A column that evaluates to a variant.
+   * @group variant_funcs
+   * @since 4.4.0
+   * @return
+   *   Returns a column that evaluates to an array.
+   */
+  def variant_object_keys(v: Column): Column = Column.fn("variant_object_keys", v)
+
+  /**
    * Check if a variant value is valid. Returns true if the variant is valid, false if it is
    * malformed, and NULL if the input is NULL.
    *

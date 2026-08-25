@@ -123,6 +123,50 @@ case class IsVariantNull(child: Expression) extends UnaryExpression
     copy(child = newChild)
 }
 
+@ExpressionDescription(
+  usage = "_FUNC_(v) - Returns all the keys of the outermost variant object as an array.",
+  arguments = """
+    Arguments:
+      * v - A variant value. If the value is a variant object, all the keys of the outermost
+          object are returned as an array. If it is any other variant value, the function returns
+          NULL.
+  """,
+  examples = """
+    Examples:
+      > SELECT _FUNC_(parse_json('{}'));
+       []
+      > SELECT _FUNC_(parse_json('{"key": "value"}'));
+       ["key"]
+      > SELECT _FUNC_(parse_json('{"f1":"abc","f2":{"f3":"a", "f4":"b"}}'));
+       ["f1","f2"]
+  """,
+  since = "4.4.0",
+  group = "variant_funcs"
+)
+case class VariantObjectKeys(child: Expression)
+  extends UnaryExpression
+  with ExpectsInputTypes
+  with RuntimeReplaceable {
+
+  override lazy val replacement: Expression = StaticInvoke(
+    VariantExpressionEvalUtils.getClass,
+    dataType,
+    "variantObjectKeys",
+    Seq(child),
+    inputTypes,
+    returnNullable = true)
+
+  override def inputTypes: Seq[AbstractDataType] = Seq(VariantType)
+
+  override def dataType: DataType = ArrayType(StringType)
+  override def nullable: Boolean = true
+
+  override def prettyName: String = "variant_object_keys"
+
+  override protected def withNewChildInternal(newChild: Expression): VariantObjectKeys =
+    copy(child = newChild)
+}
+
 // scalastyle:off line.size.limit
 @ExpressionDescription(
   usage = "_FUNC_(expr) - Convert a nested input (array/map/struct) into a variant where maps and structs are converted to variant objects which are unordered unlike SQL structs. Input maps can only have string keys.",
