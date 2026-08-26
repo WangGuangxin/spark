@@ -29,6 +29,7 @@ import org.apache.spark.sql.execution.{SparkPlan, UnionExec}
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper
 import org.apache.spark.sql.execution.columnar.InMemoryTableScanExec
 import org.apache.spark.sql.execution.exchange.{ReusedExchangeExec, ShuffleExchangeExec}
+import org.apache.spark.sql.execution.joins.SortMergeJoinExec
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.{ExamplePoint, ExamplePointUDT, SharedSparkSession, SQLTestData}
@@ -1587,6 +1588,44 @@ class DataFrameSetOperationsSuite extends SharedSparkSession with AdaptiveSparkP
         }
         checkAnswer(union, shuffledUnion)
       }
+    }
+  }
+
+  test("union partitioning - push clustered distribution through union") {
+    withSQLConf(
+        SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> "false",
+        SQLConf.AUTO_BROADCASTJOIN_THRESHOLD.key -> "-1",
+        SQLConf.SHUFFLE_PARTITIONS.key -> "2") {
+      val df1 = Seq((1, 10L), (2, 20L)).toDF("a", "v").repartition(3, $"a")
+      val df2 = Seq((1, 30L), (3, 40L)).toDF("a", "v")
+      val df3 = Seq((1, "x"), (2, "y"), (3, "z")).toDF("a", "name").repartition(3, $"a")
+      val joined = df1.union(df2).join(df3, "a")
+
+      val plan = joined.queryExecution.executedPlan
+      val unionExec = plan.collect { case u: UnionExec => u }
+      assert(unionExec.size == 1)
+      val sortMergeJoinExec = plan.collect { case s: SortMergeJoinExec => s }
+      assert(sortMergeJoinExec.size == 1)
+      val childPartitionings = unionExec.head.children.map(_.outputPartitioning)
+      assert(childPartitionings.forall {
+        case HashPartitioning(_, 3) => true
+        case _ => false
+      },
+        s"union children should satisfy the pushed distribution:\n$plan")
+      assert(unionExec.head.outputPartitioning match {
+        case HashPartitioning(_, 3) => true
+        case _ => false
+      },
+        s"union should preserve the pushed distribution:\n$plan")
+      assert(!plan.exists {
+        case s: ShuffleExchangeExec => s.child.exists(_.isInstanceOf[UnionExec])
+        case _ => false
+      }, s"shuffle should be pushed below union instead of wrapping it:\n$plan")
+
+      checkAnswer(
+        joined,
+        Row(1, 10L, "x") :: Row(1, 30L, "x") :: Row(2, 20L, "y") ::
+          Row(3, 40L, "z") :: Nil)
     }
   }
 

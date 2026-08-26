@@ -130,8 +130,15 @@ case class EnsureRequirements(
                   distribution.createPartitioning(numPartitions), child,
                   REQUIRED_BY_STATEFUL_OPERATOR)
               case _ =>
-                ShuffleExchangeExec(
-                  distribution.createPartitioning(numPartitions), child, shuffleOrigin)
+                child match {
+                  case union: UnionExec =>
+                    ensureDistributionThroughUnion(union, distribution, shuffleOrigin)
+                      .getOrElse(ShuffleExchangeExec(
+                        distribution.createPartitioning(numPartitions), child, shuffleOrigin))
+                  case _ =>
+                    ShuffleExchangeExec(
+                      distribution.createPartitioning(numPartitions), child, shuffleOrigin)
+                }
             }
           }
         }
@@ -298,6 +305,41 @@ case class EnsureRequirements(
     }
 
     children
+  }
+
+  private def ensureDistributionThroughUnion(
+      union: UnionExec,
+      distribution: Distribution,
+      shuffleOrigin: ShuffleOrigin): Option[UnionExec] = distribution match {
+    case d: ClusteredDistribution =>
+      val unionOutput = union.output
+      val newDistributions = union.children.map { child =>
+        val rewrite = AttributeMap(unionOutput.zip(child.output))
+        val newClustering = d.clustering.map { e =>
+          e.transform {
+            case a: Attribute if rewrite.contains(a) => rewrite(a)
+          }
+        }
+        d.copy(clustering = newClustering)
+      }
+      val canEvaluate = newDistributions.zip(union.children).forall { case (dist, child) =>
+        dist.clustering.forall(_.references.subsetOf(child.outputSet))
+      }
+      if (!canEvaluate) {
+        None
+      } else {
+        val newUnion = union.withNewChildren(
+          ensureDistributionAndOrdering(
+            parent = Some(union),
+            originalChildren = union.children,
+            requiredChildDistributions = newDistributions,
+            requiredChildOrderings = Seq.fill(union.children.length)(Nil),
+            shuffleOrigin = shuffleOrigin)).asInstanceOf[UnionExec]
+        Option.when(newUnion.outputPartitioning.satisfies(distribution))(newUnion)
+      }
+
+    case _ =>
+      None
   }
 
   private def hasKeyedPartitioning(p: Partitioning): Boolean = p match {
