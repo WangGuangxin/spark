@@ -300,6 +300,7 @@ abstract class Optimizer(catalogManager: CatalogManager)
       RewritePredicateSubquery,
       NullPropagation,
       PushPredicateThroughJoin,
+      PushGenerateBelowSemiAntiJoin,
       LimitPushDown,
       ColumnPruning,
       CollapseProject,
