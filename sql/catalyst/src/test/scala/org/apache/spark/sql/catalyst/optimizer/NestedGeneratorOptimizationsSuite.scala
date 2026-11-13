@@ -26,7 +26,7 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.StructType
 
 /**
- * Tests for [[GeneratorNestedFieldPruning]].
+ * Tests for [[GeneratorNestedFieldPruning]] and [[GeneratorArrayPrefilter]].
  */
 class NestedGeneratorOptimizationsSuite extends SchemaPruningTest {
 
@@ -160,5 +160,66 @@ class NestedGeneratorOptimizationsSuite extends SchemaPruningTest {
         .analyze
       comparePlans(GeneratorNestedFieldPruning(query), query)
     }
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // GeneratorArrayPrefilter
+  // ---------------------------------------------------------------------------------------------
+
+  private def prefilterOf(plan: LogicalPlan): Option[Expression] =
+    generates(plan).head.child match {
+      case Filter(cond, _) => Some(cond)
+      case _ => None
+    }
+
+  test("GeneratorArrayPrefilter: copies the filter on the generated value to the array") {
+    val query = exploded()
+      .where(g("a") > 1 && $"k" > 0)
+      .analyze
+    val optimized = GeneratorArrayPrefilter(query)
+    val cond = prefilterOf(optimized)
+    assert(cond.exists(_.isInstanceOf[ArrayExists]), s"No prefilter:\n$optimized")
+    // Only the conjunct on the generated value is copied.
+    assert(!cond.get.references.exists(_.name == "k"))
+    // The original filter stays.
+    assert(optimized.asInstanceOf[Filter].condition === query.asInstanceOf[Filter].condition)
+    checkResolvedWithSameSchema(optimized, query)
+    // Handled once.
+    comparePlans(GeneratorArrayPrefilter(optimized), optimized)
+  }
+
+  test("GeneratorArrayPrefilter: posexplode") {
+    val query = rel.generate(PosExplode($"arr"), outputNames = Seq("pos", "g"))
+      .where(g("a") > 1 && $"pos" > 0)
+      .analyze
+    val optimized = GeneratorArrayPrefilter(query)
+    val cond = prefilterOf(optimized)
+    assert(cond.exists(_.isInstanceOf[ArrayExists]), s"No prefilter:\n$optimized")
+    // `pos` does not exist below the generate, so that conjunct is not copied.
+    assert(cond.get.references.map(_.name) === Set("arr"))
+    checkResolvedWithSameSchema(optimized, query)
+  }
+
+  test("GeneratorArrayPrefilter: not applied twice when the generate loses its tags") {
+    val optimized = GeneratorArrayPrefilter(exploded().where(g("a") > 1).analyze)
+    // Other rules may rebuild the generate without copying its tags.
+    val untagged = optimized match {
+      case f @ Filter(_, gen: Generate) => f.copy(child = gen.copy())
+    }
+    comparePlans(GeneratorArrayPrefilter(untagged), untagged)
+  }
+
+  test("GeneratorArrayPrefilter: unchanged plans") {
+    val outerQuery = exploded(outer = true).where(g("a") > 1).analyze
+    comparePlans(GeneratorArrayPrefilter(outerQuery), outerQuery)
+
+    val notNullQuery = exploded().where($"g".isNotNull).analyze
+    comparePlans(GeneratorArrayPrefilter(notNullQuery), notNullQuery)
+
+    val noGeneratedValue = exploded().where($"k" > 1).analyze
+    comparePlans(GeneratorArrayPrefilter(noGeneratedValue), noGeneratedValue)
+
+    val nonDeterministic = exploded().where(g("a") > Rand(0) * 10).analyze
+    comparePlans(GeneratorArrayPrefilter(nonDeterministic), nonDeterministic)
   }
 }

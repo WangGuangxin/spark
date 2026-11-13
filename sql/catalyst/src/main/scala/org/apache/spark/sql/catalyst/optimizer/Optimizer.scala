@@ -115,6 +115,7 @@ abstract class Optimizer(catalogManager: CatalogManager)
         ColumnPruning,
         GenerateOptimization,
         GeneratorNestedFieldPruning,
+        GeneratorArrayPrefilter,
         // Operator combine
         CollapseRepartition,
         CollapseProject,
