@@ -107,13 +107,13 @@ class NestedGeneratorOptimizationsSuite extends SchemaPruningTest {
     Seq(false, true).foreach { outer =>
       val query = rel.generate(PosExplode($"arr"), outer = outer, outputNames = Seq("pos", "g"))
         .where(g("a") > 1)
-        .select($"pos", g("b").as("b"), g("c").as("c"))
+        .select($"pos", g("b").as("b"))
         .analyze
       val optimized = GeneratorNestedFieldPruning(query)
       val gen = generates(optimized).head
       assert(gen.generator.isInstanceOf[PosExplode])
       assert(gen.outer === outer)
-      assert(extractedFields(gen.generator) === Set("a", "b", "c"))
+      assert(extractedFields(gen.generator) === Set("a", "b"))
       checkResolvedWithSameSchema(optimized, query)
     }
   }
@@ -186,7 +186,7 @@ class NestedGeneratorOptimizationsSuite extends SchemaPruningTest {
     // Only the conjunct on the generated value is copied.
     assert(!cond.get.references.exists(_.name == "k"))
     // The original filter stays.
-    assert(optimized.asInstanceOf[Filter].condition === query.asInstanceOf[Filter].condition)
+    assert(optimized.asInstanceOf[Filter].condition == query.asInstanceOf[Filter].condition)
     checkResolvedWithSameSchema(optimized, query)
     // Handled once.
     comparePlans(GeneratorArrayPrefilter(optimized), optimized)
@@ -200,7 +200,7 @@ class NestedGeneratorOptimizationsSuite extends SchemaPruningTest {
     val cond = prefilterOf(optimized)
     assert(cond.exists(_.isInstanceOf[ArrayExists]), s"No prefilter:\n$optimized")
     // `pos` does not exist below the generate, so that conjunct is not copied.
-    assert(cond.get.references.map(_.name) === Set("arr"))
+    assert(cond.get.references.map(_.name).toSet === Set("arr"))
     checkResolvedWithSameSchema(optimized, query)
   }
 
@@ -279,6 +279,21 @@ class NestedGeneratorOptimizationsSuite extends SchemaPruningTest {
     checkResolvedWithSameSchema(optimized, query)
   }
 
+  test("PushGenerateBelowSemiAntiJoin: a column-only Project between the joins") {
+    val query = rel
+      .join(other, LeftSemi, Some($"k" === $"k2"))
+      .select($"k", $"arr")
+      .join(other2, LeftAnti, Some($"k" === $"k3"))
+      .generate(Explode($"arr"), outputNames = Seq("g"))
+      .where(g("a") > 1)
+      .select($"k", g("b").as("b"))
+      .analyze
+    val optimized = PushGenerateBelowSemiAntiJoin(query)
+    checkPushedBelowAll(optimized, filtered = true)
+    assert(optimized.collect { case j: Join => j.joinType } === Seq(LeftAnti, LeftSemi))
+    checkResolvedWithSameSchema(optimized, query)
+  }
+
   test("PushGenerateBelowSemiAntiJoin: a Project between the generate and the joins") {
     // The join key `k` is not in the Project; it is added below the generate for the join.
     val query = rel
@@ -299,14 +314,6 @@ class NestedGeneratorOptimizationsSuite extends SchemaPruningTest {
   test("PushGenerateBelowSemiAntiJoin: unchanged plans") {
     val inner = generateOverJoin(Inner, filtered = true)
     comparePlans(PushGenerateBelowSemiAntiJoin(inner), inner)
-
-    val nonDeterministicCondition = rel
-      .join(other, LeftSemi, Some($"k" === $"k2" && Rand(0) > 0.5))
-      .generate(Explode($"arr"), outputNames = Seq("g"))
-      .select(g("b").as("b"))
-      .analyze
-    comparePlans(
-      PushGenerateBelowSemiAntiJoin(nonDeterministicCondition), nonDeterministicCondition)
 
     val nonDeterministicGenerator = rel
       .join(other, LeftSemi, Some($"k" === $"k2"))

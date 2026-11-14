@@ -16,8 +16,8 @@
  */
 package org.apache.spark.sql.catalyst.optimizer
 
-import org.apache.spark.sql.catalyst.expressions.{AttributeSet, Expression, NamedExpression,
-  SubqueryExpression}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, Expression,
+  NamedExpression, SubqueryExpression}
 import org.apache.spark.sql.catalyst.plans.{LeftAnti, LeftSemi}
 import org.apache.spark.sql.catalyst.plans.logical.{Filter, Generate, Join, LogicalPlan, Project}
 import org.apache.spark.sql.catalyst.rules.Rule
@@ -47,8 +47,9 @@ import org.apache.spark.sql.catalyst.rules.Rule
  * only exploded, filtered and dropped afterwards. On a flat schema the same filter runs before the
  * joins. Moving the generate down lets the array be dropped before the shuffle.
  *
- * Runs in the `RewriteSubquery` batch, right after the semi/anti joins are created, where
- * `PushDownLeftSemiAntiJoin` (which moves such joins below a generate) no longer runs.
+ * Runs in the `RewriteSubquery` batch, after the semi/anti joins are created and the Projects
+ * above them are collapsed, where `PushDownLeftSemiAntiJoin` (which moves such joins below a
+ * generate) no longer runs.
  */
 object PushGenerateBelowSemiAntiJoin extends Rule[LogicalPlan] {
 
@@ -85,13 +86,21 @@ object PushGenerateBelowSemiAntiJoin extends Rule[LogicalPlan] {
       case j: Join => (None, j)
       case _ => return None
     }
-    // Joins from top to bottom along the left side.
+    // Joins from top to bottom along the left side. Projects between them that only select
+    // columns (as `ColumnPruning` adds) are dropped: the joins only drop rows, and the Projects
+    // built below and on top keep exactly the columns that are needed.
     var joins = List.empty[Join]
     var cur: LogicalPlan = top
-    while (cur match { case j: Join => isSemiAnti(j); case _ => false }) {
-      val j = cur.asInstanceOf[Join]
-      joins = joins :+ j
-      cur = j.left
+    var done = false
+    while (!done) cur match {
+      case j: Join if isSemiAnti(j) =>
+        joins = joins :+ j
+        cur = j.left
+      case Project(list, j: Join) if joins.nonEmpty && isSemiAnti(j) &&
+          list.forall(_.isInstanceOf[Attribute]) =>
+        cur = j
+      case _ =>
+        done = true
     }
     if (joins.isEmpty) return None
     val x = cur

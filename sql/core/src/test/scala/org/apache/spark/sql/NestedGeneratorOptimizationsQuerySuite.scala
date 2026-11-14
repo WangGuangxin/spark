@@ -22,7 +22,8 @@ import org.apache.spark.sql.catalyst.optimizer.{GeneratorArrayPrefilter,
   GeneratorNestedFieldPruning, PushGenerateBelowSemiAntiJoin}
 import org.apache.spark.sql.catalyst.plans.{LeftAnti, LeftSemi}
 import org.apache.spark.sql.catalyst.plans.logical.{Generate, Join, LogicalPlan}
-import org.apache.spark.sql.execution.datasources.LogicalRelation
+import org.apache.spark.sql.execution.FileSourceScanExec
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{ArrayType, StructType}
@@ -33,7 +34,8 @@ import org.apache.spark.sql.types.{ArrayType, StructType}
  * [[PushGenerateBelowSemiAntiJoin]]. Every query is checked against the result with the three
  * rules excluded, and the optimized plan is checked for the expected effect.
  */
-class NestedGeneratorOptimizationsQuerySuite extends QueryTest with SharedSparkSession {
+class NestedGeneratorOptimizationsQuerySuite extends QueryTest with SharedSparkSession
+  with AdaptiveSparkPlanHelper {
 
   private val ruleNames = Seq(
     GeneratorNestedFieldPruning, GeneratorArrayPrefilter, PushGenerateBelowSemiAntiJoin
@@ -85,14 +87,15 @@ class NestedGeneratorOptimizationsQuerySuite extends QueryTest with SharedSparkS
     df
   }
 
-  /** The struct field names read from the array column `column` by every scan of it. */
-  private def readFields(plan: LogicalPlan, column: String): Seq[Set[String]] = plan.collect {
-    case r: LogicalRelation if r.output.exists(_.name == column) =>
-      r.output.find(_.name == column).get.dataType match {
-        case ArrayType(st: StructType, _) => st.fieldNames.toSet
-        case other => fail(s"Unexpected type of $column: $other")
-      }
-  }
+  /** The struct field names that every file scan reading the array column `column` reads. */
+  private def readFields(df: DataFrame, column: String): Seq[Set[String]] =
+    collect(df.queryExecution.executedPlan) {
+      case s: FileSourceScanExec if s.requiredSchema.fieldNames.contains(column) =>
+        s.requiredSchema(column).dataType match {
+          case ArrayType(st: StructType, _) => st.fieldNames.toSet
+          case other => fail(s"Unexpected type of $column: $other")
+        }
+    }
 
   private def optimized(df: DataFrame): LogicalPlan = df.queryExecution.optimizedPlan
 
@@ -104,7 +107,7 @@ class NestedGeneratorOptimizationsQuerySuite extends QueryTest with SharedSparkS
            |FROM orders LATERAL VIEW $gen(o_data) t AS o
            |WHERE o.qty > 3
            |""".stripMargin)
-      assert(readFields(optimized(df), "o_data") === Seq(Set("qty", "flag")))
+      assert(readFields(df, "o_data") === Seq(Set("qty", "flag")))
     }
   }
 
@@ -112,12 +115,12 @@ class NestedGeneratorOptimizationsQuerySuite extends QueryTest with SharedSparkS
     val df = checkSameAsWithoutRules(
       """
         |SELECT o.flag, count(*), sum(o.price), max(pos)
-        |FROM orders LATERAL VIEW posexplode(o_data) t AS pos, o
-        |JOIN parts ON p_key = o_key
+        |FROM orders JOIN parts ON p_key = o_key
+        |LATERAL VIEW posexplode(o_data) t AS pos, o
         |WHERE o.qty > 1
         |GROUP BY o.flag
         |""".stripMargin)
-    assert(readFields(optimized(df), "o_data") === Seq(Set("qty", "flag", "price")))
+    assert(readFields(df, "o_data") === Seq(Set("qty", "flag", "price")))
   }
 
   test("the whole struct is used") {
@@ -127,7 +130,7 @@ class NestedGeneratorOptimizationsQuerySuite extends QueryTest with SharedSparkS
         |FROM orders LATERAL VIEW explode(o_data) t AS o
         |WHERE o.qty > 3
         |""".stripMargin)
-    assert(readFields(optimized(df), "o_data") ===
+    assert(readFields(df, "o_data") ===
       Seq(Set("qty", "flag", "price", "comment")))
   }
 
@@ -167,8 +170,8 @@ class NestedGeneratorOptimizationsQuerySuite extends QueryTest with SharedSparkS
       assert(!j.output.exists(_.name == "o_data"), s"Array carried into a join:\n$plan")
     }
     // ... and only the used fields are read, also inside the EXISTS subquery.
-    assert(readFields(plan, "o_data") === Seq(Set("qty", "flag", "price")))
-    assert(readFields(plan, "p_data") === Seq(Set("size")))
+    assert(readFields(df, "o_data") === Seq(Set("qty", "flag", "price")))
+    assert(readFields(df, "p_data") === Seq(Set("size")))
   }
 
   test("IN subquery over a nested table") {

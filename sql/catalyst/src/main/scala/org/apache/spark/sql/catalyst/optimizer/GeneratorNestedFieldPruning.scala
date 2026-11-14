@@ -19,7 +19,7 @@ package org.apache.spark.sql.catalyst.optimizer
 import scala.collection.mutable
 
 import org.apache.spark.sql.catalyst.expressions.{Alias, ArraysZip, Attribute, AttributeReference,
-  Exists, Explode, ExprId, Expression, GetArrayStructFields, GetStructField, NamedExpression,
+  Exists, Explode, Expression, ExprId, GetArrayStructFields, GetStructField, NamedExpression,
   OuterReference, PosExplode, SubqueryExpression}
 import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, Filter, Generate, GlobalLimit, Join,
   LocalLimit, LogicalPlan, Project, Repartition, RepartitionByExpression, ResolvedHint, Sample,
