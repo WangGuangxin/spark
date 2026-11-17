@@ -297,6 +297,10 @@ abstract class Optimizer(catalogManager: CatalogManager)
       LimitPushDown,
       ColumnPruning,
       CollapseProject,
+      // Needs the Projects that `RewritePredicateSubquery` adds above the new joins collapsed.
+      PushGenerateBelowSemiAntiJoin,
+      ColumnPruning,
+      CollapseProject,
       RemoveRedundantAliases,
       RemoveNoopOperators),
     // This batch must be executed after the `RewriteSubquery` batch, which creates joins.
