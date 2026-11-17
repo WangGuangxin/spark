@@ -114,6 +114,7 @@ abstract class Optimizer(catalogManager: CatalogManager)
         RewriteSizeOfArrayStruct,
         ColumnPruning,
         GenerateOptimization,
+        GeneratorArrayPrefilter,
         // Operator combine
         CollapseRepartition,
         CollapseProject,
