@@ -114,6 +114,7 @@ abstract class Optimizer(catalogManager: CatalogManager)
         RewriteSizeOfArrayStruct,
         ColumnPruning,
         GenerateOptimization,
+        GeneratorNestedFieldPruning,
         // Operator combine
         CollapseRepartition,
         CollapseProject,
@@ -217,6 +218,10 @@ abstract class Optimizer(catalogManager: CatalogManager)
       OptimizeOneRowRelationSubquery,
       PullOutNestedDataOuterRefExpressions,
       PullupCorrelatedPredicates),
+    // Before the subqueries are optimized on their own, where the output of an EXISTS subquery
+    // looks used and pins every field of the arrays it explodes.
+    Batch("Prune Generator Nested Fields", Once,
+      GeneratorNestedFieldPruning),
     // Subquery batch applies the optimizer rules recursively. Therefore, it makes no sense
     // to enforce idempotence on it and we change this batch from Once to FixedPoint(1).
     Batch("Subquery", FixedPoint(1),
